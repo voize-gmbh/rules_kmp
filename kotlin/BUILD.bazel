@@ -1,0 +1,13 @@
+package(default_visibility = ["//visibility:public"])
+
+toolchain_type(name = "jvm_toolchain_type")
+
+toolchain_type(name = "web_toolchain_type")
+
+toolchain_type(name = "native_toolchain_type")
+
+# Compiling Kotlin/Native sources to a klib, which needs neither Xcode nor LLVM.
+toolchain_type(name = "native_klib_toolchain_type")
+
+# Compiling klibs to static caches, which needs LLVM and an archiver but nothing from Xcode.
+toolchain_type(name = "native_cache_toolchain_type")

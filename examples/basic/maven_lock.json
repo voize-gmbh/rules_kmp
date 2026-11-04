@@ -1,0 +1,856 @@
+{
+ "artifacts": {
+  "org.apiguardian:apiguardian-api:1.1.2:apiguardian-api-1.1.2.jar": {
+   "file": "apiguardian-api-1.1.2.jar",
+   "sha256": "b509448ac506d607319f182537f0b35d71007582ec741832a1f111e5b5b70b38",
+   "url": "https://repo1.maven.org/maven2/org/apiguardian/apiguardian-api/1.1.2/apiguardian-api-1.1.2.jar"
+  },
+  "org.jetbrains.kotlin:kotlin-serialization-compiler-plugin-embeddable:2.4.21:kotlin-serialization-compiler-plugin-embeddable-2.4.21.jar": {
+   "file": "kotlin-serialization-compiler-plugin-embeddable-2.4.21.jar",
+   "sha256": "63b381018a7d45221795d18301150fb80a1d00f30aae7be0550ab86f9ddd0ce8",
+   "url": "https://repo1.maven.org/maven2/org/jetbrains/kotlin/kotlin-serialization-compiler-plugin-embeddable/2.4.21/kotlin-serialization-compiler-plugin-embeddable-2.4.21.jar"
+  },
+  "org.jetbrains.kotlin:kotlin-stdlib:2.4.21:kotlin-stdlib-2.4.21.jar": {
+   "file": "kotlin-stdlib-2.4.21.jar",
+   "sha256": "bd8250210584cb659847dce9cda660f8e9906e5def7fbebcea93dc6dcb6a88a3",
+   "url": "https://repo1.maven.org/maven2/org/jetbrains/kotlin/kotlin-stdlib/2.4.21/kotlin-stdlib-2.4.21.jar"
+  },
+  "org.jetbrains.kotlin:kotlin-test-junit5:2.4.21:kotlin-test-junit5-2.4.21.jar": {
+   "file": "kotlin-test-junit5-2.4.21.jar",
+   "sha256": "488e12c6e5ce2ed9dacdebc5ab2582b938781e753eec6867b0e65f4e9d7d200d",
+   "url": "https://repo1.maven.org/maven2/org/jetbrains/kotlin/kotlin-test-junit5/2.4.21/kotlin-test-junit5-2.4.21.jar"
+  },
+  "org.jetbrains.kotlin:kotlin-test:2.4.21:kotlin-test-2.4.21.jar": {
+   "file": "kotlin-test-2.4.21.jar",
+   "sha256": "4b43f419bf41a9ede07094652db97b5034984a8cdc642f3c5b2bfd4767f6e365",
+   "url": "https://repo1.maven.org/maven2/org/jetbrains/kotlin/kotlin-test/2.4.21/kotlin-test-2.4.21.jar"
+  },
+  "org.jetbrains.kotlinx:atomicfu-iosarm64:0.32.1:atomicfu-iosArm64Cinterop-interopMain-0.32.1.klib": {
+   "file": "atomicfu-iosArm64Cinterop-interopMain-0.32.1.klib",
+   "sha256": "3b82332d088c938714510256d812bec5c7e3406475aec80cea32c91089dd137f",
+   "url": "https://repo1.maven.org/maven2/org/jetbrains/kotlinx/atomicfu-iosarm64/0.32.1/atomicfu-iosarm64-0.32.1-cinterop-interop.klib"
+  },
+  "org.jetbrains.kotlinx:atomicfu-iosarm64:0.32.1:atomicfu-iosArm64Main-0.32.1.klib": {
+   "file": "atomicfu-iosArm64Main-0.32.1.klib",
+   "sha256": "44411dbb0e4a3efdd4cc2d74db7ef18477f65fdba0d4b7956e1658546fcd947d",
+   "url": "https://repo1.maven.org/maven2/org/jetbrains/kotlinx/atomicfu-iosarm64/0.32.1/atomicfu-iosarm64-0.32.1.klib"
+  },
+  "org.jetbrains.kotlinx:atomicfu-iossimulatorarm64:0.32.1:atomicfu-iosSimulatorArm64Cinterop-interopMain-0.32.1.klib": {
+   "file": "atomicfu-iosSimulatorArm64Cinterop-interopMain-0.32.1.klib",
+   "sha256": "c6ba3b588ffae909ac021105ba87dfde5a80de19e2679413f36f05b87e7fa8e2",
+   "url": "https://repo1.maven.org/maven2/org/jetbrains/kotlinx/atomicfu-iossimulatorarm64/0.32.1/atomicfu-iossimulatorarm64-0.32.1-cinterop-interop.klib"
+  },
+  "org.jetbrains.kotlinx:atomicfu-iossimulatorarm64:0.32.1:atomicfu-iosSimulatorArm64Main-0.32.1.klib": {
+   "file": "atomicfu-iosSimulatorArm64Main-0.32.1.klib",
+   "sha256": "10100e1e68f25dd209fa089bbc9344c3aa8430e87122f1dd9c8b85e1cc46c7f2",
+   "url": "https://repo1.maven.org/maven2/org/jetbrains/kotlinx/atomicfu-iossimulatorarm64/0.32.1/atomicfu-iossimulatorarm64-0.32.1.klib"
+  },
+  "org.jetbrains.kotlinx:atomicfu-macosarm64:0.32.1:atomicfu-macosArm64Cinterop-interopMain-0.32.1.klib": {
+   "file": "atomicfu-macosArm64Cinterop-interopMain-0.32.1.klib",
+   "sha256": "165c584c77f7c716cdc5a083093ef235c9bacfeabad6ed32ca9f7b928acbe292",
+   "url": "https://repo1.maven.org/maven2/org/jetbrains/kotlinx/atomicfu-macosarm64/0.32.1/atomicfu-macosarm64-0.32.1-cinterop-interop.klib"
+  },
+  "org.jetbrains.kotlinx:atomicfu-macosarm64:0.32.1:atomicfu-macosArm64Main-0.32.1.klib": {
+   "file": "atomicfu-macosArm64Main-0.32.1.klib",
+   "sha256": "368865987bfa5da765e40b15b4df60fd12f257688ed65a96ca71ebf2cf1a5261",
+   "url": "https://repo1.maven.org/maven2/org/jetbrains/kotlinx/atomicfu-macosarm64/0.32.1/atomicfu-macosarm64-0.32.1.klib"
+  },
+  "org.jetbrains.kotlinx:kotlinx-coroutines-core-iosarm64:1.11.0:kotlinx-coroutines-core-iosArm64Main-1.11.0.klib": {
+   "file": "kotlinx-coroutines-core-iosArm64Main-1.11.0.klib",
+   "sha256": "9d071a8f57b5bf31487bac7568ec4fd852fc2fd4c2416876df4df3ebb0129ed4",
+   "url": "https://repo1.maven.org/maven2/org/jetbrains/kotlinx/kotlinx-coroutines-core-iosarm64/1.11.0/kotlinx-coroutines-core-iosarm64-1.11.0.klib"
+  },
+  "org.jetbrains.kotlinx:kotlinx-coroutines-core-iossimulatorarm64:1.11.0:kotlinx-coroutines-core-iosSimulatorArm64Main-1.11.0.klib": {
+   "file": "kotlinx-coroutines-core-iosSimulatorArm64Main-1.11.0.klib",
+   "sha256": "3200d59215e7f4c6ffccc32d30d05e5425d80144a8a7bafb70f99d86b9402379",
+   "url": "https://repo1.maven.org/maven2/org/jetbrains/kotlinx/kotlinx-coroutines-core-iossimulatorarm64/1.11.0/kotlinx-coroutines-core-iossimulatorarm64-1.11.0.klib"
+  },
+  "org.jetbrains.kotlinx:kotlinx-coroutines-core-jvm:1.11.0:kotlinx-coroutines-core-jvm-1.11.0.jar": {
+   "file": "kotlinx-coroutines-core-jvm-1.11.0.jar",
+   "sha256": "d1d75aa01dffbb4d1c520e67e4c4e7f5f6174718e7cb4632412503f2f0e604fa",
+   "url": "https://repo1.maven.org/maven2/org/jetbrains/kotlinx/kotlinx-coroutines-core-jvm/1.11.0/kotlinx-coroutines-core-jvm-1.11.0.jar"
+  },
+  "org.jetbrains.kotlinx:kotlinx-coroutines-core-macosarm64:1.11.0:kotlinx-coroutines-core-macosArm64Main-1.11.0.klib": {
+   "file": "kotlinx-coroutines-core-macosArm64Main-1.11.0.klib",
+   "sha256": "782a837c8593af70135378fb90b999cf0cb9880dc746619f64d6c5c224d014d0",
+   "url": "https://repo1.maven.org/maven2/org/jetbrains/kotlinx/kotlinx-coroutines-core-macosarm64/1.11.0/kotlinx-coroutines-core-macosarm64-1.11.0.klib"
+  },
+  "org.jetbrains.kotlinx:kotlinx-coroutines-test-iosarm64:1.11.0:kotlinx-coroutines-test-iosArm64Main-1.11.0.klib": {
+   "file": "kotlinx-coroutines-test-iosArm64Main-1.11.0.klib",
+   "sha256": "0ba2405b2de8b2137edfaef61aa934f5e8a28e30e88531deaf2177a97b478e6b",
+   "url": "https://repo1.maven.org/maven2/org/jetbrains/kotlinx/kotlinx-coroutines-test-iosarm64/1.11.0/kotlinx-coroutines-test-iosarm64-1.11.0.klib"
+  },
+  "org.jetbrains.kotlinx:kotlinx-coroutines-test-iossimulatorarm64:1.11.0:kotlinx-coroutines-test-iosSimulatorArm64Main-1.11.0.klib": {
+   "file": "kotlinx-coroutines-test-iosSimulatorArm64Main-1.11.0.klib",
+   "sha256": "61932534a04abcccec14b52d6f218426eedbe11b060fe6e3450b7e91cc08d2ad",
+   "url": "https://repo1.maven.org/maven2/org/jetbrains/kotlinx/kotlinx-coroutines-test-iossimulatorarm64/1.11.0/kotlinx-coroutines-test-iossimulatorarm64-1.11.0.klib"
+  },
+  "org.jetbrains.kotlinx:kotlinx-coroutines-test-jvm:1.11.0:kotlinx-coroutines-test-jvm-1.11.0.jar": {
+   "file": "kotlinx-coroutines-test-jvm-1.11.0.jar",
+   "sha256": "d4f7ee71da708af4719dceb6d3200c8f9dc5146ea1a812cb628ed53c64196f96",
+   "url": "https://repo1.maven.org/maven2/org/jetbrains/kotlinx/kotlinx-coroutines-test-jvm/1.11.0/kotlinx-coroutines-test-jvm-1.11.0.jar"
+  },
+  "org.jetbrains.kotlinx:kotlinx-coroutines-test-macosarm64:1.11.0:kotlinx-coroutines-test-macosArm64Main-1.11.0.klib": {
+   "file": "kotlinx-coroutines-test-macosArm64Main-1.11.0.klib",
+   "sha256": "1e9602d5d7750e1bcde2480494c9ae65a3d1d19f966eb755731db9b359cc9039",
+   "url": "https://repo1.maven.org/maven2/org/jetbrains/kotlinx/kotlinx-coroutines-test-macosarm64/1.11.0/kotlinx-coroutines-test-macosarm64-1.11.0.klib"
+  },
+  "org.jetbrains.kotlinx:kotlinx-serialization-core-iosarm64:1.11.0:kotlinx-serialization-core-iosArm64Main-1.11.0.klib": {
+   "file": "kotlinx-serialization-core-iosArm64Main-1.11.0.klib",
+   "sha256": "c4231813a585384c493947756ee1ffbbd4d3e0b76ac98d2ed8335909aa1316a2",
+   "url": "https://repo1.maven.org/maven2/org/jetbrains/kotlinx/kotlinx-serialization-core-iosarm64/1.11.0/kotlinx-serialization-core-iosarm64-1.11.0.klib"
+  },
+  "org.jetbrains.kotlinx:kotlinx-serialization-core-iossimulatorarm64:1.11.0:kotlinx-serialization-core-iosSimulatorArm64Main-1.11.0.klib": {
+   "file": "kotlinx-serialization-core-iosSimulatorArm64Main-1.11.0.klib",
+   "sha256": "6f4dbb2d2b56a25b8ec0fe620d2f0f6f5c88510d81d8361cf9fc1807c83e57a5",
+   "url": "https://repo1.maven.org/maven2/org/jetbrains/kotlinx/kotlinx-serialization-core-iossimulatorarm64/1.11.0/kotlinx-serialization-core-iossimulatorarm64-1.11.0.klib"
+  },
+  "org.jetbrains.kotlinx:kotlinx-serialization-core-jvm:1.11.0:kotlinx-serialization-core-jvm-1.11.0.jar": {
+   "file": "kotlinx-serialization-core-jvm-1.11.0.jar",
+   "sha256": "f4a801c647d4351327cd9e1ac4113e2be9ea37a64ab0abae269c25a52e28f35d",
+   "url": "https://repo1.maven.org/maven2/org/jetbrains/kotlinx/kotlinx-serialization-core-jvm/1.11.0/kotlinx-serialization-core-jvm-1.11.0.jar"
+  },
+  "org.jetbrains.kotlinx:kotlinx-serialization-core-macosarm64:1.11.0:kotlinx-serialization-core-macosArm64Main-1.11.0.klib": {
+   "file": "kotlinx-serialization-core-macosArm64Main-1.11.0.klib",
+   "sha256": "551d11833d5611afe63dac02c05dd21611fe5f43d002e014cbe61b380551e3e4",
+   "url": "https://repo1.maven.org/maven2/org/jetbrains/kotlinx/kotlinx-serialization-core-macosarm64/1.11.0/kotlinx-serialization-core-macosarm64-1.11.0.klib"
+  },
+  "org.jetbrains.kotlinx:kotlinx-serialization-json-iosarm64:1.11.0:kotlinx-serialization-json-iosArm64Main-1.11.0.klib": {
+   "file": "kotlinx-serialization-json-iosArm64Main-1.11.0.klib",
+   "sha256": "b6bdde447bac2dc90e9d73a107aedb130cc4bd873227d87ce3009659434f9903",
+   "url": "https://repo1.maven.org/maven2/org/jetbrains/kotlinx/kotlinx-serialization-json-iosarm64/1.11.0/kotlinx-serialization-json-iosarm64-1.11.0.klib"
+  },
+  "org.jetbrains.kotlinx:kotlinx-serialization-json-iossimulatorarm64:1.11.0:kotlinx-serialization-json-iosSimulatorArm64Main-1.11.0.klib": {
+   "file": "kotlinx-serialization-json-iosSimulatorArm64Main-1.11.0.klib",
+   "sha256": "4083d68d4c3f31b9c30972c3bf5b02a6dc274f3fcafb1637182fa9b6db09bd73",
+   "url": "https://repo1.maven.org/maven2/org/jetbrains/kotlinx/kotlinx-serialization-json-iossimulatorarm64/1.11.0/kotlinx-serialization-json-iossimulatorarm64-1.11.0.klib"
+  },
+  "org.jetbrains.kotlinx:kotlinx-serialization-json-jvm:1.11.0:kotlinx-serialization-json-jvm-1.11.0.jar": {
+   "file": "kotlinx-serialization-json-jvm-1.11.0.jar",
+   "sha256": "563a25b4eb5c9128ae9c2479f3d1a5c44dcd176112b91cf03682e906eba5c935",
+   "url": "https://repo1.maven.org/maven2/org/jetbrains/kotlinx/kotlinx-serialization-json-jvm/1.11.0/kotlinx-serialization-json-jvm-1.11.0.jar"
+  },
+  "org.jetbrains.kotlinx:kotlinx-serialization-json-macosarm64:1.11.0:kotlinx-serialization-json-macosArm64Main-1.11.0.klib": {
+   "file": "kotlinx-serialization-json-macosArm64Main-1.11.0.klib",
+   "sha256": "422eb1c46ccf299e35575cbca2227d23e8873d2da9ce86c5e968a7a3ddedcb2b",
+   "url": "https://repo1.maven.org/maven2/org/jetbrains/kotlinx/kotlinx-serialization-json-macosarm64/1.11.0/kotlinx-serialization-json-macosarm64-1.11.0.klib"
+  },
+  "org.jetbrains:annotations:23.0.0:annotations-23.0.0.jar": {
+   "file": "annotations-23.0.0.jar",
+   "sha256": "7b0f19724082cbfcbc66e5abea2b9bc92cf08a1ea11e191933ed43801eb3cd05",
+   "url": "https://repo1.maven.org/maven2/org/jetbrains/annotations/23.0.0/annotations-23.0.0.jar"
+  },
+  "org.junit.jupiter:junit-jupiter-api:5.12.1:junit-jupiter-api-5.12.1.jar": {
+   "file": "junit-jupiter-api-5.12.1.jar",
+   "sha256": "a401e0b60373edf7df0962c25eb3213e451a4778792d33a76876c3b8a5bb209b",
+   "url": "https://repo1.maven.org/maven2/org/junit/jupiter/junit-jupiter-api/5.12.1/junit-jupiter-api-5.12.1.jar"
+  },
+  "org.junit.jupiter:junit-jupiter-engine:5.12.1:junit-jupiter-engine-5.12.1.jar": {
+   "file": "junit-jupiter-engine-5.12.1.jar",
+   "sha256": "0e7f2dbeb91bfaeb0d4cb33a487351baf0e5a6ed72906154d8fd9975d329c592",
+   "url": "https://repo1.maven.org/maven2/org/junit/jupiter/junit-jupiter-engine/5.12.1/junit-jupiter-engine-5.12.1.jar"
+  },
+  "org.junit.platform:junit-platform-commons:1.12.1:junit-platform-commons-1.12.1.jar": {
+   "file": "junit-platform-commons-1.12.1.jar",
+   "sha256": "c316163581aaa5649280122b12ea36fe4e9c202a1a2267753fea7c9e1df055eb",
+   "url": "https://repo1.maven.org/maven2/org/junit/platform/junit-platform-commons/1.12.1/junit-platform-commons-1.12.1.jar"
+  },
+  "org.junit.platform:junit-platform-engine:1.12.1:junit-platform-engine-1.12.1.jar": {
+   "file": "junit-platform-engine-1.12.1.jar",
+   "sha256": "7fedff93fd92aec7d29fc60dc01fa027246b36b8088423a5efc4949e5f6affa4",
+   "url": "https://repo1.maven.org/maven2/org/junit/platform/junit-platform-engine/1.12.1/junit-platform-engine-1.12.1.jar"
+  },
+  "org.junit.platform:junit-platform-launcher:1.12.1:junit-platform-launcher-1.12.1.jar": {
+   "file": "junit-platform-launcher-1.12.1.jar",
+   "sha256": "ebbb14e7b29f60730eaede862ed69d7de0d581ea0c038fa6a202955c7541f525",
+   "url": "https://repo1.maven.org/maven2/org/junit/platform/junit-platform-launcher/1.12.1/junit-platform-launcher-1.12.1.jar"
+  },
+  "org.opentest4j:opentest4j:1.3.0:opentest4j-1.3.0.jar": {
+   "file": "opentest4j-1.3.0.jar",
+   "sha256": "48e2df636cab6563ced64dcdff8abb2355627cb236ef0bf37598682ddf742f1b",
+   "url": "https://repo1.maven.org/maven2/org/opentest4j/opentest4j/1.3.0/opentest4j-1.3.0.jar"
+  }
+ },
+ "platforms": {
+  "android": {
+   "org.jetbrains.kotlin:kotlin-stdlib": {
+    "deps": [
+     "org.jetbrains:annotations"
+    ],
+    "files": [
+     "org.jetbrains.kotlin:kotlin-stdlib:2.4.21:kotlin-stdlib-2.4.21.jar"
+    ],
+    "runtime_deps": [],
+    "version": "2.4.21"
+   },
+   "org.jetbrains.kotlin:kotlin-test": {
+    "deps": [
+     "org.jetbrains.kotlin:kotlin-stdlib"
+    ],
+    "files": [
+     "org.jetbrains.kotlin:kotlin-test:2.4.21:kotlin-test-2.4.21.jar"
+    ],
+    "runtime_deps": [],
+    "version": "2.4.21"
+   },
+   "org.jetbrains.kotlinx:kotlinx-coroutines-bom": {
+    "deps": [],
+    "files": [],
+    "runtime_deps": [],
+    "version": "1.11.0"
+   },
+   "org.jetbrains.kotlinx:kotlinx-coroutines-core": {
+    "deps": [
+     "org.jetbrains.kotlinx:kotlinx-coroutines-core-jvm"
+    ],
+    "files": [],
+    "runtime_deps": [],
+    "version": "1.11.0"
+   },
+   "org.jetbrains.kotlinx:kotlinx-coroutines-core-jvm": {
+    "deps": [
+     "org.jetbrains.kotlin:kotlin-stdlib",
+     "org.jetbrains.kotlinx:kotlinx-coroutines-bom",
+     "org.jetbrains:annotations"
+    ],
+    "files": [
+     "org.jetbrains.kotlinx:kotlinx-coroutines-core-jvm:1.11.0:kotlinx-coroutines-core-jvm-1.11.0.jar"
+    ],
+    "runtime_deps": [],
+    "version": "1.11.0"
+   },
+   "org.jetbrains.kotlinx:kotlinx-coroutines-test": {
+    "deps": [
+     "org.jetbrains.kotlinx:kotlinx-coroutines-test-jvm"
+    ],
+    "files": [],
+    "runtime_deps": [],
+    "version": "1.11.0"
+   },
+   "org.jetbrains.kotlinx:kotlinx-coroutines-test-jvm": {
+    "deps": [
+     "org.jetbrains.kotlin:kotlin-stdlib",
+     "org.jetbrains.kotlinx:kotlinx-coroutines-bom",
+     "org.jetbrains.kotlinx:kotlinx-coroutines-core",
+     "org.jetbrains:annotations"
+    ],
+    "files": [
+     "org.jetbrains.kotlinx:kotlinx-coroutines-test-jvm:1.11.0:kotlinx-coroutines-test-jvm-1.11.0.jar"
+    ],
+    "runtime_deps": [],
+    "version": "1.11.0"
+   },
+   "org.jetbrains.kotlinx:kotlinx-serialization-bom": {
+    "deps": [],
+    "files": [],
+    "runtime_deps": [],
+    "version": "1.11.0"
+   },
+   "org.jetbrains.kotlinx:kotlinx-serialization-core": {
+    "deps": [
+     "org.jetbrains.kotlinx:kotlinx-serialization-core-jvm"
+    ],
+    "files": [],
+    "runtime_deps": [],
+    "version": "1.11.0"
+   },
+   "org.jetbrains.kotlinx:kotlinx-serialization-core-jvm": {
+    "deps": [
+     "org.jetbrains.kotlin:kotlin-stdlib",
+     "org.jetbrains.kotlinx:kotlinx-serialization-bom"
+    ],
+    "files": [
+     "org.jetbrains.kotlinx:kotlinx-serialization-core-jvm:1.11.0:kotlinx-serialization-core-jvm-1.11.0.jar"
+    ],
+    "runtime_deps": [],
+    "version": "1.11.0"
+   },
+   "org.jetbrains.kotlinx:kotlinx-serialization-json": {
+    "deps": [
+     "org.jetbrains.kotlinx:kotlinx-serialization-json-jvm"
+    ],
+    "files": [],
+    "runtime_deps": [],
+    "version": "1.11.0"
+   },
+   "org.jetbrains.kotlinx:kotlinx-serialization-json-jvm": {
+    "deps": [
+     "org.jetbrains.kotlin:kotlin-stdlib",
+     "org.jetbrains.kotlinx:kotlinx-serialization-bom",
+     "org.jetbrains.kotlinx:kotlinx-serialization-core"
+    ],
+    "files": [
+     "org.jetbrains.kotlinx:kotlinx-serialization-json-jvm:1.11.0:kotlinx-serialization-json-jvm-1.11.0.jar"
+    ],
+    "runtime_deps": [],
+    "version": "1.11.0"
+   },
+   "org.jetbrains:annotations": {
+    "deps": [],
+    "files": [
+     "org.jetbrains:annotations:23.0.0:annotations-23.0.0.jar"
+    ],
+    "runtime_deps": [],
+    "version": "23.0.0"
+   }
+  },
+  "ios_arm64": {
+   "org.jetbrains.kotlin:kotlin-stdlib": {
+    "deps": [],
+    "files": [],
+    "runtime_deps": [],
+    "version": "2.4.21"
+   },
+   "org.jetbrains.kotlin:kotlin-test": {
+    "deps": [],
+    "files": [],
+    "runtime_deps": [],
+    "version": "2.4.21"
+   },
+   "org.jetbrains.kotlinx:atomicfu": {
+    "deps": [
+     "org.jetbrains.kotlinx:atomicfu-iosarm64"
+    ],
+    "files": [],
+    "runtime_deps": [],
+    "version": "0.32.1"
+   },
+   "org.jetbrains.kotlinx:atomicfu-iosarm64": {
+    "deps": [
+     "org.jetbrains.kotlin:kotlin-stdlib"
+    ],
+    "files": [
+     "org.jetbrains.kotlinx:atomicfu-iosarm64:0.32.1:atomicfu-iosArm64Cinterop-interopMain-0.32.1.klib",
+     "org.jetbrains.kotlinx:atomicfu-iosarm64:0.32.1:atomicfu-iosArm64Main-0.32.1.klib"
+    ],
+    "runtime_deps": [],
+    "version": "0.32.1"
+   },
+   "org.jetbrains.kotlinx:kotlinx-coroutines-core": {
+    "deps": [
+     "org.jetbrains.kotlinx:kotlinx-coroutines-core-iosarm64"
+    ],
+    "files": [],
+    "runtime_deps": [],
+    "version": "1.11.0"
+   },
+   "org.jetbrains.kotlinx:kotlinx-coroutines-core-iosarm64": {
+    "deps": [
+     "org.jetbrains.kotlin:kotlin-stdlib",
+     "org.jetbrains.kotlinx:atomicfu"
+    ],
+    "files": [
+     "org.jetbrains.kotlinx:kotlinx-coroutines-core-iosarm64:1.11.0:kotlinx-coroutines-core-iosArm64Main-1.11.0.klib"
+    ],
+    "runtime_deps": [],
+    "version": "1.11.0"
+   },
+   "org.jetbrains.kotlinx:kotlinx-coroutines-test": {
+    "deps": [
+     "org.jetbrains.kotlinx:kotlinx-coroutines-test-iosarm64"
+    ],
+    "files": [],
+    "runtime_deps": [],
+    "version": "1.11.0"
+   },
+   "org.jetbrains.kotlinx:kotlinx-coroutines-test-iosarm64": {
+    "deps": [
+     "org.jetbrains.kotlin:kotlin-stdlib",
+     "org.jetbrains.kotlinx:atomicfu",
+     "org.jetbrains.kotlinx:kotlinx-coroutines-core"
+    ],
+    "files": [
+     "org.jetbrains.kotlinx:kotlinx-coroutines-test-iosarm64:1.11.0:kotlinx-coroutines-test-iosArm64Main-1.11.0.klib"
+    ],
+    "runtime_deps": [],
+    "version": "1.11.0"
+   },
+   "org.jetbrains.kotlinx:kotlinx-serialization-core": {
+    "deps": [
+     "org.jetbrains.kotlinx:kotlinx-serialization-core-iosarm64"
+    ],
+    "files": [],
+    "runtime_deps": [],
+    "version": "1.11.0"
+   },
+   "org.jetbrains.kotlinx:kotlinx-serialization-core-iosarm64": {
+    "deps": [
+     "org.jetbrains.kotlin:kotlin-stdlib"
+    ],
+    "files": [
+     "org.jetbrains.kotlinx:kotlinx-serialization-core-iosarm64:1.11.0:kotlinx-serialization-core-iosArm64Main-1.11.0.klib"
+    ],
+    "runtime_deps": [],
+    "version": "1.11.0"
+   },
+   "org.jetbrains.kotlinx:kotlinx-serialization-json": {
+    "deps": [
+     "org.jetbrains.kotlinx:kotlinx-serialization-json-iosarm64"
+    ],
+    "files": [],
+    "runtime_deps": [],
+    "version": "1.11.0"
+   },
+   "org.jetbrains.kotlinx:kotlinx-serialization-json-iosarm64": {
+    "deps": [
+     "org.jetbrains.kotlin:kotlin-stdlib",
+     "org.jetbrains.kotlinx:kotlinx-serialization-core"
+    ],
+    "files": [
+     "org.jetbrains.kotlinx:kotlinx-serialization-json-iosarm64:1.11.0:kotlinx-serialization-json-iosArm64Main-1.11.0.klib"
+    ],
+    "runtime_deps": [],
+    "version": "1.11.0"
+   }
+  },
+  "ios_simulator_arm64": {
+   "org.jetbrains.kotlin:kotlin-stdlib": {
+    "deps": [],
+    "files": [],
+    "runtime_deps": [],
+    "version": "2.4.21"
+   },
+   "org.jetbrains.kotlin:kotlin-test": {
+    "deps": [],
+    "files": [],
+    "runtime_deps": [],
+    "version": "2.4.21"
+   },
+   "org.jetbrains.kotlinx:atomicfu": {
+    "deps": [
+     "org.jetbrains.kotlinx:atomicfu-iossimulatorarm64"
+    ],
+    "files": [],
+    "runtime_deps": [],
+    "version": "0.32.1"
+   },
+   "org.jetbrains.kotlinx:atomicfu-iossimulatorarm64": {
+    "deps": [
+     "org.jetbrains.kotlin:kotlin-stdlib"
+    ],
+    "files": [
+     "org.jetbrains.kotlinx:atomicfu-iossimulatorarm64:0.32.1:atomicfu-iosSimulatorArm64Cinterop-interopMain-0.32.1.klib",
+     "org.jetbrains.kotlinx:atomicfu-iossimulatorarm64:0.32.1:atomicfu-iosSimulatorArm64Main-0.32.1.klib"
+    ],
+    "runtime_deps": [],
+    "version": "0.32.1"
+   },
+   "org.jetbrains.kotlinx:kotlinx-coroutines-core": {
+    "deps": [
+     "org.jetbrains.kotlinx:kotlinx-coroutines-core-iossimulatorarm64"
+    ],
+    "files": [],
+    "runtime_deps": [],
+    "version": "1.11.0"
+   },
+   "org.jetbrains.kotlinx:kotlinx-coroutines-core-iossimulatorarm64": {
+    "deps": [
+     "org.jetbrains.kotlin:kotlin-stdlib",
+     "org.jetbrains.kotlinx:atomicfu"
+    ],
+    "files": [
+     "org.jetbrains.kotlinx:kotlinx-coroutines-core-iossimulatorarm64:1.11.0:kotlinx-coroutines-core-iosSimulatorArm64Main-1.11.0.klib"
+    ],
+    "runtime_deps": [],
+    "version": "1.11.0"
+   },
+   "org.jetbrains.kotlinx:kotlinx-coroutines-test": {
+    "deps": [
+     "org.jetbrains.kotlinx:kotlinx-coroutines-test-iossimulatorarm64"
+    ],
+    "files": [],
+    "runtime_deps": [],
+    "version": "1.11.0"
+   },
+   "org.jetbrains.kotlinx:kotlinx-coroutines-test-iossimulatorarm64": {
+    "deps": [
+     "org.jetbrains.kotlin:kotlin-stdlib",
+     "org.jetbrains.kotlinx:atomicfu",
+     "org.jetbrains.kotlinx:kotlinx-coroutines-core"
+    ],
+    "files": [
+     "org.jetbrains.kotlinx:kotlinx-coroutines-test-iossimulatorarm64:1.11.0:kotlinx-coroutines-test-iosSimulatorArm64Main-1.11.0.klib"
+    ],
+    "runtime_deps": [],
+    "version": "1.11.0"
+   },
+   "org.jetbrains.kotlinx:kotlinx-serialization-core": {
+    "deps": [
+     "org.jetbrains.kotlinx:kotlinx-serialization-core-iossimulatorarm64"
+    ],
+    "files": [],
+    "runtime_deps": [],
+    "version": "1.11.0"
+   },
+   "org.jetbrains.kotlinx:kotlinx-serialization-core-iossimulatorarm64": {
+    "deps": [
+     "org.jetbrains.kotlin:kotlin-stdlib"
+    ],
+    "files": [
+     "org.jetbrains.kotlinx:kotlinx-serialization-core-iossimulatorarm64:1.11.0:kotlinx-serialization-core-iosSimulatorArm64Main-1.11.0.klib"
+    ],
+    "runtime_deps": [],
+    "version": "1.11.0"
+   },
+   "org.jetbrains.kotlinx:kotlinx-serialization-json": {
+    "deps": [
+     "org.jetbrains.kotlinx:kotlinx-serialization-json-iossimulatorarm64"
+    ],
+    "files": [],
+    "runtime_deps": [],
+    "version": "1.11.0"
+   },
+   "org.jetbrains.kotlinx:kotlinx-serialization-json-iossimulatorarm64": {
+    "deps": [
+     "org.jetbrains.kotlin:kotlin-stdlib",
+     "org.jetbrains.kotlinx:kotlinx-serialization-core"
+    ],
+    "files": [
+     "org.jetbrains.kotlinx:kotlinx-serialization-json-iossimulatorarm64:1.11.0:kotlinx-serialization-json-iosSimulatorArm64Main-1.11.0.klib"
+    ],
+    "runtime_deps": [],
+    "version": "1.11.0"
+   }
+  },
+  "jvm": {
+   "org.apiguardian:apiguardian-api": {
+    "deps": [],
+    "files": [
+     "org.apiguardian:apiguardian-api:1.1.2:apiguardian-api-1.1.2.jar"
+    ],
+    "runtime_deps": [],
+    "version": "1.1.2"
+   },
+   "org.jetbrains.kotlin:kotlin-stdlib": {
+    "deps": [
+     "org.jetbrains:annotations"
+    ],
+    "files": [
+     "org.jetbrains.kotlin:kotlin-stdlib:2.4.21:kotlin-stdlib-2.4.21.jar"
+    ],
+    "runtime_deps": [],
+    "version": "2.4.21"
+   },
+   "org.jetbrains.kotlin:kotlin-test": {
+    "deps": [
+     "org.jetbrains.kotlin:kotlin-stdlib"
+    ],
+    "files": [
+     "org.jetbrains.kotlin:kotlin-test:2.4.21:kotlin-test-2.4.21.jar"
+    ],
+    "runtime_deps": [],
+    "version": "2.4.21"
+   },
+   "org.jetbrains.kotlin:kotlin-test-junit5": {
+    "deps": [
+     "org.jetbrains.kotlin:kotlin-test",
+     "org.junit.jupiter:junit-jupiter-api"
+    ],
+    "files": [
+     "org.jetbrains.kotlin:kotlin-test-junit5:2.4.21:kotlin-test-junit5-2.4.21.jar"
+    ],
+    "runtime_deps": [
+     "org.junit.jupiter:junit-jupiter-engine",
+     "org.junit.platform:junit-platform-launcher"
+    ],
+    "version": "2.4.21"
+   },
+   "org.jetbrains.kotlinx:kotlinx-coroutines-bom": {
+    "deps": [],
+    "files": [],
+    "runtime_deps": [],
+    "version": "1.11.0"
+   },
+   "org.jetbrains.kotlinx:kotlinx-coroutines-core": {
+    "deps": [
+     "org.jetbrains.kotlinx:kotlinx-coroutines-core-jvm"
+    ],
+    "files": [],
+    "runtime_deps": [],
+    "version": "1.11.0"
+   },
+   "org.jetbrains.kotlinx:kotlinx-coroutines-core-jvm": {
+    "deps": [
+     "org.jetbrains.kotlin:kotlin-stdlib",
+     "org.jetbrains.kotlinx:kotlinx-coroutines-bom",
+     "org.jetbrains:annotations"
+    ],
+    "files": [
+     "org.jetbrains.kotlinx:kotlinx-coroutines-core-jvm:1.11.0:kotlinx-coroutines-core-jvm-1.11.0.jar"
+    ],
+    "runtime_deps": [],
+    "version": "1.11.0"
+   },
+   "org.jetbrains.kotlinx:kotlinx-coroutines-test": {
+    "deps": [
+     "org.jetbrains.kotlinx:kotlinx-coroutines-test-jvm"
+    ],
+    "files": [],
+    "runtime_deps": [],
+    "version": "1.11.0"
+   },
+   "org.jetbrains.kotlinx:kotlinx-coroutines-test-jvm": {
+    "deps": [
+     "org.jetbrains.kotlin:kotlin-stdlib",
+     "org.jetbrains.kotlinx:kotlinx-coroutines-bom",
+     "org.jetbrains.kotlinx:kotlinx-coroutines-core",
+     "org.jetbrains:annotations"
+    ],
+    "files": [
+     "org.jetbrains.kotlinx:kotlinx-coroutines-test-jvm:1.11.0:kotlinx-coroutines-test-jvm-1.11.0.jar"
+    ],
+    "runtime_deps": [],
+    "version": "1.11.0"
+   },
+   "org.jetbrains.kotlinx:kotlinx-serialization-bom": {
+    "deps": [],
+    "files": [],
+    "runtime_deps": [],
+    "version": "1.11.0"
+   },
+   "org.jetbrains.kotlinx:kotlinx-serialization-core": {
+    "deps": [
+     "org.jetbrains.kotlinx:kotlinx-serialization-core-jvm"
+    ],
+    "files": [],
+    "runtime_deps": [],
+    "version": "1.11.0"
+   },
+   "org.jetbrains.kotlinx:kotlinx-serialization-core-jvm": {
+    "deps": [
+     "org.jetbrains.kotlin:kotlin-stdlib",
+     "org.jetbrains.kotlinx:kotlinx-serialization-bom"
+    ],
+    "files": [
+     "org.jetbrains.kotlinx:kotlinx-serialization-core-jvm:1.11.0:kotlinx-serialization-core-jvm-1.11.0.jar"
+    ],
+    "runtime_deps": [],
+    "version": "1.11.0"
+   },
+   "org.jetbrains.kotlinx:kotlinx-serialization-json": {
+    "deps": [
+     "org.jetbrains.kotlinx:kotlinx-serialization-json-jvm"
+    ],
+    "files": [],
+    "runtime_deps": [],
+    "version": "1.11.0"
+   },
+   "org.jetbrains.kotlinx:kotlinx-serialization-json-jvm": {
+    "deps": [
+     "org.jetbrains.kotlin:kotlin-stdlib",
+     "org.jetbrains.kotlinx:kotlinx-serialization-bom",
+     "org.jetbrains.kotlinx:kotlinx-serialization-core"
+    ],
+    "files": [
+     "org.jetbrains.kotlinx:kotlinx-serialization-json-jvm:1.11.0:kotlinx-serialization-json-jvm-1.11.0.jar"
+    ],
+    "runtime_deps": [],
+    "version": "1.11.0"
+   },
+   "org.jetbrains:annotations": {
+    "deps": [],
+    "files": [
+     "org.jetbrains:annotations:23.0.0:annotations-23.0.0.jar"
+    ],
+    "runtime_deps": [],
+    "version": "23.0.0"
+   },
+   "org.junit.jupiter:junit-jupiter-api": {
+    "deps": [
+     "org.apiguardian:apiguardian-api",
+     "org.junit.platform:junit-platform-commons",
+     "org.junit:junit-bom",
+     "org.opentest4j:opentest4j"
+    ],
+    "files": [
+     "org.junit.jupiter:junit-jupiter-api:5.12.1:junit-jupiter-api-5.12.1.jar"
+    ],
+    "runtime_deps": [],
+    "version": "5.12.1"
+   },
+   "org.junit.jupiter:junit-jupiter-engine": {
+    "deps": [
+     "org.apiguardian:apiguardian-api",
+     "org.junit.jupiter:junit-jupiter-api",
+     "org.junit.platform:junit-platform-engine",
+     "org.junit:junit-bom"
+    ],
+    "files": [
+     "org.junit.jupiter:junit-jupiter-engine:5.12.1:junit-jupiter-engine-5.12.1.jar"
+    ],
+    "runtime_deps": [],
+    "version": "5.12.1"
+   },
+   "org.junit.platform:junit-platform-commons": {
+    "deps": [
+     "org.apiguardian:apiguardian-api",
+     "org.junit:junit-bom"
+    ],
+    "files": [
+     "org.junit.platform:junit-platform-commons:1.12.1:junit-platform-commons-1.12.1.jar"
+    ],
+    "runtime_deps": [],
+    "version": "1.12.1"
+   },
+   "org.junit.platform:junit-platform-engine": {
+    "deps": [
+     "org.apiguardian:apiguardian-api",
+     "org.junit.platform:junit-platform-commons",
+     "org.junit:junit-bom",
+     "org.opentest4j:opentest4j"
+    ],
+    "files": [
+     "org.junit.platform:junit-platform-engine:1.12.1:junit-platform-engine-1.12.1.jar"
+    ],
+    "runtime_deps": [],
+    "version": "1.12.1"
+   },
+   "org.junit.platform:junit-platform-launcher": {
+    "deps": [
+     "org.apiguardian:apiguardian-api",
+     "org.junit.platform:junit-platform-engine",
+     "org.junit:junit-bom"
+    ],
+    "files": [
+     "org.junit.platform:junit-platform-launcher:1.12.1:junit-platform-launcher-1.12.1.jar"
+    ],
+    "runtime_deps": [],
+    "version": "1.12.1"
+   },
+   "org.junit:junit-bom": {
+    "deps": [],
+    "files": [],
+    "runtime_deps": [],
+    "version": "5.12.1"
+   },
+   "org.opentest4j:opentest4j": {
+    "deps": [],
+    "files": [
+     "org.opentest4j:opentest4j:1.3.0:opentest4j-1.3.0.jar"
+    ],
+    "runtime_deps": [],
+    "version": "1.3.0"
+   }
+  },
+  "macos_arm64": {
+   "org.jetbrains.kotlin:kotlin-stdlib": {
+    "deps": [],
+    "files": [],
+    "runtime_deps": [],
+    "version": "2.4.21"
+   },
+   "org.jetbrains.kotlin:kotlin-test": {
+    "deps": [],
+    "files": [],
+    "runtime_deps": [],
+    "version": "2.4.21"
+   },
+   "org.jetbrains.kotlinx:atomicfu": {
+    "deps": [
+     "org.jetbrains.kotlinx:atomicfu-macosarm64"
+    ],
+    "files": [],
+    "runtime_deps": [],
+    "version": "0.32.1"
+   },
+   "org.jetbrains.kotlinx:atomicfu-macosarm64": {
+    "deps": [
+     "org.jetbrains.kotlin:kotlin-stdlib"
+    ],
+    "files": [
+     "org.jetbrains.kotlinx:atomicfu-macosarm64:0.32.1:atomicfu-macosArm64Cinterop-interopMain-0.32.1.klib",
+     "org.jetbrains.kotlinx:atomicfu-macosarm64:0.32.1:atomicfu-macosArm64Main-0.32.1.klib"
+    ],
+    "runtime_deps": [],
+    "version": "0.32.1"
+   },
+   "org.jetbrains.kotlinx:kotlinx-coroutines-core": {
+    "deps": [
+     "org.jetbrains.kotlinx:kotlinx-coroutines-core-macosarm64"
+    ],
+    "files": [],
+    "runtime_deps": [],
+    "version": "1.11.0"
+   },
+   "org.jetbrains.kotlinx:kotlinx-coroutines-core-macosarm64": {
+    "deps": [
+     "org.jetbrains.kotlin:kotlin-stdlib",
+     "org.jetbrains.kotlinx:atomicfu"
+    ],
+    "files": [
+     "org.jetbrains.kotlinx:kotlinx-coroutines-core-macosarm64:1.11.0:kotlinx-coroutines-core-macosArm64Main-1.11.0.klib"
+    ],
+    "runtime_deps": [],
+    "version": "1.11.0"
+   },
+   "org.jetbrains.kotlinx:kotlinx-coroutines-test": {
+    "deps": [
+     "org.jetbrains.kotlinx:kotlinx-coroutines-test-macosarm64"
+    ],
+    "files": [],
+    "runtime_deps": [],
+    "version": "1.11.0"
+   },
+   "org.jetbrains.kotlinx:kotlinx-coroutines-test-macosarm64": {
+    "deps": [
+     "org.jetbrains.kotlin:kotlin-stdlib",
+     "org.jetbrains.kotlinx:atomicfu",
+     "org.jetbrains.kotlinx:kotlinx-coroutines-core"
+    ],
+    "files": [
+     "org.jetbrains.kotlinx:kotlinx-coroutines-test-macosarm64:1.11.0:kotlinx-coroutines-test-macosArm64Main-1.11.0.klib"
+    ],
+    "runtime_deps": [],
+    "version": "1.11.0"
+   },
+   "org.jetbrains.kotlinx:kotlinx-serialization-core": {
+    "deps": [
+     "org.jetbrains.kotlinx:kotlinx-serialization-core-macosarm64"
+    ],
+    "files": [],
+    "runtime_deps": [],
+    "version": "1.11.0"
+   },
+   "org.jetbrains.kotlinx:kotlinx-serialization-core-macosarm64": {
+    "deps": [
+     "org.jetbrains.kotlin:kotlin-stdlib"
+    ],
+    "files": [
+     "org.jetbrains.kotlinx:kotlinx-serialization-core-macosarm64:1.11.0:kotlinx-serialization-core-macosArm64Main-1.11.0.klib"
+    ],
+    "runtime_deps": [],
+    "version": "1.11.0"
+   },
+   "org.jetbrains.kotlinx:kotlinx-serialization-json": {
+    "deps": [
+     "org.jetbrains.kotlinx:kotlinx-serialization-json-macosarm64"
+    ],
+    "files": [],
+    "runtime_deps": [],
+    "version": "1.11.0"
+   },
+   "org.jetbrains.kotlinx:kotlinx-serialization-json-macosarm64": {
+    "deps": [
+     "org.jetbrains.kotlin:kotlin-stdlib",
+     "org.jetbrains.kotlinx:kotlinx-serialization-core"
+    ],
+    "files": [
+     "org.jetbrains.kotlinx:kotlinx-serialization-json-macosarm64:1.11.0:kotlinx-serialization-json-macosArm64Main-1.11.0.klib"
+    ],
+    "runtime_deps": [],
+    "version": "1.11.0"
+   }
+  },
+  "tools": {
+   "org.jetbrains.kotlin:kotlin-serialization-compiler-plugin-embeddable": {
+    "deps": [],
+    "files": [
+     "org.jetbrains.kotlin:kotlin-serialization-compiler-plugin-embeddable:2.4.21:kotlin-serialization-compiler-plugin-embeddable-2.4.21.jar"
+    ],
+    "runtime_deps": [],
+    "version": "2.4.21"
+   }
+  }
+ },
+ "version": 1
+}

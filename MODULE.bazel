@@ -1,0 +1,27 @@
+module(name = "rules_kmp")
+
+bazel_dep(name = "platforms", version = "1.1.0")
+bazel_dep(name = "bazel_skylib", version = "1.9.2")
+bazel_dep(name = "rules_java", version = "9.9.0")
+bazel_dep(name = "rules_python", version = "2.4.2")
+bazel_dep(name = "rules_cc", version = "0.2.26")
+bazel_dep(name = "rules_android", version = "0.8.0")
+bazel_dep(name = "apple_support", version = "2.10.1")
+bazel_dep(name = "rules_swift", version = "4.2.1")
+
+kotlin = use_extension("//kotlin:extensions.bzl", "kotlin")
+use_repo(
+    kotlin,
+    "kotlin_compiler",
+    "kotlin_native_apple_targets_patch",
+    "kotlin_native_apple_targets_patch_linux_arm64",
+    "kotlin_native_cache_class_fields_patch",
+    "kotlin_native_linux_aarch64",
+    "kotlin_native_linux_x86_64",
+    "kotlin_native_macos_aarch64",
+)
+
+maven = use_extension("//maven:extension.bzl", "maven")
+use_repo(maven, "kmp_maven_libs")
+
+register_toolchains("//kotlin/toolchains:all")

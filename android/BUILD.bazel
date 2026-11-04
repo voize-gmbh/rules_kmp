@@ -1,0 +1,4 @@
+exports_files(
+    ["EmptyManifest.xml"],
+    visibility = ["//visibility:public"],
+)

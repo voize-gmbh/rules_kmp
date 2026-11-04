@@ -1,0 +1,47 @@
+load("@bazel_skylib//rules:common_settings.bzl", "bool_flag", "string_flag")
+
+package(default_visibility = ["//visibility:public"])
+
+# Kotlin/Native static caches for debug binaries (kotlin/private/native_cache.bzl); turn off to
+# rule them out when a debug binary misbehaves.
+bool_flag(
+    name = "native_caches",
+    build_setting_default = True,
+)
+
+# Whether static caches may compile on Linux executors, which needs patched compiler classes
+# (repositories/patches). Off keeps them on the Mac.
+bool_flag(
+    name = "native_caches_on_linux",
+    build_setting_default = False,
+)
+
+# Debug info for stepping over Kotlin/Native's bridging code, as Xcode's debugger does. It needs
+# Xcode's LLVM, so static caches then build on a Mac with Xcode. Off, a Mac builds them like Linux
+# executors do, and the same: caches and the links that use them hit the same cache entries.
+bool_flag(
+    name = "debug_transparent_stepping",
+    build_setting_default = False,
+)
+
+config_setting(
+    name = "debug_transparent_stepping_enabled",
+    flag_values = {":debug_transparent_stepping": "true"},
+)
+
+config_setting(
+    name = "debug_transparent_stepping_disabled",
+    flag_values = {":debug_transparent_stepping": "false"},
+)
+
+config_setting(
+    name = "native_caches_on_linux_enabled",
+    flag_values = {":native_caches_on_linux": "true"},
+)
+
+# The minimum iOS version Kotlin/Native binaries, their static caches and the Objective-C and Swift
+# code they link are built for.
+string_flag(
+    name = "ios_minimum_os",
+    build_setting_default = "15.0",
+)

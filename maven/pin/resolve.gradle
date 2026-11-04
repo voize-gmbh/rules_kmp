@@ -1,0 +1,185 @@
+// Resolves the configurations a pin request describes and writes their dependency graphs and files.
+// Plain Gradle: the attributes the Kotlin and Android Gradle plugins set on consumers are set by
+// hand, with the compatibility rules those plugins register for them.
+//
+// gradle -Prequest=<request.json> -Presult=<result.json> resolve
+
+import groovy.json.JsonOutput
+import groovy.json.JsonSlurper
+import java.util.regex.Pattern
+
+plugins {
+    id "jvm-ecosystem"
+}
+
+def request = new JsonSlurper().parse(file(providers.gradleProperty("request").get()))
+
+repositories {
+    request.repositories.eachWithIndex { r, i ->
+        maven {
+            name = r.name
+            url = uri(r.url)
+            def user = System.getenv("PIN_REPOSITORY_${i}_USERNAME")
+            if (user != null) {
+                credentials {
+                    username = user
+                    password = System.getenv("PIN_REPOSITORY_${i}_PASSWORD")
+                }
+                // Sent up front, as Bazel's downloader sends ~/.netrc credentials.
+                authentication { basic(BasicAuthentication) }
+            }
+            if (r.groups) {
+                content { r.groups.each { includeGroupByRegex(Pattern.quote(it) + ".*") } }
+            }
+        }
+    }
+}
+
+// KGP: a Kotlin/JVM library serves Android consumers that find no androidJvm variant.
+class PlatformTypeCompatibility implements AttributeCompatibilityRule<String> {
+    void execute(CompatibilityCheckDetails<String> details) {
+        if (details.consumerValue == "androidJvm" && details.producerValue == "jvm") details.compatible()
+    }
+}
+
+class PreferRequested implements AttributeDisambiguationRule<String> {
+    void execute(MultipleCandidatesDetails<String> details) {
+        if (details.candidateValues.contains(details.consumerValue)) details.closestMatch(details.consumerValue)
+    }
+}
+
+// KGP: Kotlin consumers take plain Java variants (POM-only modules) when there is no Kotlin one.
+class KotlinUsageCompatibility implements AttributeCompatibilityRule<Usage> {
+    static final Map<String, List<String>> ACCEPTS = [
+        "kotlin-api"    : ["java-api", "java-runtime"],
+        "kotlin-runtime": ["java-runtime", "kotlin-api", "java-api"],
+    ]
+
+    void execute(CompatibilityCheckDetails<Usage> details) {
+        def accepted = ACCEPTS[details.consumerValue?.name]
+        if (accepted != null && accepted.contains(details.producerValue?.name)) details.compatible()
+    }
+}
+
+class KotlinUsageDisambiguation implements AttributeDisambiguationRule<Usage> {
+    void execute(MultipleCandidatesDetails<Usage> details) {
+        def consumer = details.consumerValue?.name
+        def order = KotlinUsageCompatibility.ACCEPTS[consumer]
+        if (order == null) return
+        for (name in [consumer] + order) {
+            def match = details.candidateValues.find { it.name == name }
+            if (match != null) {
+                details.closestMatch(match)
+                return
+            }
+        }
+    }
+}
+
+def stringAttribute = { String name -> Attribute.of(name, String) }
+
+dependencies.attributesSchema {
+    attribute(stringAttribute("org.jetbrains.kotlin.platform.type")) {
+        compatibilityRules.add(PlatformTypeCompatibility)
+        disambiguationRules.add(PreferRequested)
+    }
+    attribute(Usage.USAGE_ATTRIBUTE) {
+        compatibilityRules.add(KotlinUsageCompatibility)
+        disambiguationRules.add(KotlinUsageDisambiguation)
+    }
+}
+
+dependencies.components {
+    // kotlin-test's framework modules exclude each other on a classpath through this capability.
+    // The lock holds each of them; a test target picks one.
+    ["kotlin-test-junit", "kotlin-test-junit5", "kotlin-test-testng"].each { module ->
+        withModule("org.jetbrains.kotlin:" + module) {
+            allVariants { withCapabilities { removeCapability("org.jetbrains.kotlin", "kotlin-test-framework-impl") } }
+        }
+    }
+    request.omitDependencies.each { o ->
+        def (group, module) = o.dependency.split(":")
+        withModule(o.module) {
+            allVariants { withDependencies { removeAll { it.group == group && it.name == module } } }
+        }
+    }
+}
+
+def setAttribute = { AttributeContainer attrs, String name, Object value ->
+    switch (name) {
+        case Usage.USAGE_ATTRIBUTE.name:
+            attrs.attribute(Usage.USAGE_ATTRIBUTE, objects.named(Usage, value)); break
+        case Category.CATEGORY_ATTRIBUTE.name:
+            attrs.attribute(Category.CATEGORY_ATTRIBUTE, objects.named(Category, value)); break
+        case TargetJvmEnvironment.TARGET_JVM_ENVIRONMENT_ATTRIBUTE.name:
+            attrs.attribute(TargetJvmEnvironment.TARGET_JVM_ENVIRONMENT_ATTRIBUTE, objects.named(TargetJvmEnvironment, value)); break
+        case TargetJvmVersion.TARGET_JVM_VERSION_ATTRIBUTE.name:
+            attrs.attribute(TargetJvmVersion.TARGET_JVM_VERSION_ATTRIBUTE, value as Integer); break
+        default:
+            attrs.attribute(stringAttribute(name), value as String)
+    }
+}
+
+def describe = { Throwable t ->
+    def messages = []
+    for (; t != null; t = t.cause) {
+        if (t.message && !messages.contains(t.message)) messages << t.message
+    }
+    messages.join("\n    ")
+}
+
+def resolveConfiguration = { Configuration c ->
+    def res = [components: [], artifacts: [], unresolved: []]
+    def seen = new HashSet()
+    def queue = [c.incoming.resolutionResult.root]
+    while (!queue.isEmpty()) {
+        def comp = queue.remove(0)
+        if (!seen.add(comp.id)) continue
+        def entry = [id: comp.id.displayName, deps: []]
+        if (comp.id instanceof ModuleComponentIdentifier) {
+            entry.group = comp.id.group
+            entry.module = comp.id.module
+            entry.version = comp.id.version
+        }
+        comp.dependencies.each { d ->
+            if (d instanceof ResolvedDependencyResult) {
+                entry.deps << [selected: d.selected.id.displayName, constraint: d.constraint]
+                queue << d.selected
+            } else if (d instanceof UnresolvedDependencyResult) {
+                res.unresolved << describe(d.failure)
+            }
+        }
+        res.components << entry
+    }
+    def view = c.incoming.artifactView {
+        lenient(true)
+        componentFilter { it instanceof ModuleComponentIdentifier }
+    }
+    view.artifacts.each { a ->
+        if (a.file.isFile()) res.artifacts << [component: a.id.componentIdentifier.displayName, file: a.file.absolutePath]
+    }
+    view.artifacts.failures.each { res.unresolved << describe(it) }
+    res
+}
+
+tasks.register("resolve") {
+    def out = file(providers.gradleProperty("result").get())
+    doLast {
+        def results = [:]
+        request.resolutions.each { r ->
+            def deps = r.dependencies.collect { d ->
+                def dep = d.bom ? project.dependencies.platform(d.coordinates) : project.dependencies.create(d.coordinates)
+                (d.excludes ?: []).each { ex ->
+                    def (group, module) = ex.split(":")
+                    dep.exclude(group: group, module: module)
+                }
+                dep
+            }
+            def c = configurations.detachedConfiguration(deps as Dependency[])
+            c.transitive = r.transitive
+            c.attributes { attrs -> r.attributes.each { k, v -> setAttribute(attrs, k, v) } }
+            results[r.name] = resolveConfiguration(c)
+        }
+        out.text = JsonOutput.toJson(results)
+    }
+}

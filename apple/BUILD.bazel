@@ -1,0 +1,6 @@
+load(":native_deps.bzl", "apple_swift_runtime_libs")
+
+apple_swift_runtime_libs(
+    name = "swift_runtime_libs",
+    visibility = ["//visibility:public"],
+)

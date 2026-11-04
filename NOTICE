@@ -1,0 +1,6 @@
+rules_kmp
+Copyright 2026 voize GmbH
+
+The patches in repositories/patches/ change source files of the Kotlin compiler
+(https://github.com/JetBrains/kotlin). Those files are Copyright 2010-2026 JetBrains s.r.o. and
+Kotlin Programming Language contributors, and are licensed under the Apache License 2.0.

@@ -1,0 +1,358 @@
+load("@kmp_maven_libs//:defs.bzl", "ANDROID_STDLIB", "JVM_STDLIB", "KSP")
+load("@rules_java//java:java_import.bzl", "java_import")
+load("//kotlin:defs.bzl", "kmp_jvm_library", "kotlin_toolchain")
+load("//kotlin:version.bzl", "KOTLIN_VERSION")
+
+package(default_visibility = ["//visibility:public"])
+
+_KN = "@kotlin_native_macos_aarch64//"
+
+_TYPES = "//kotlin:"
+
+_BUILDER = "//kotlin/worker:builder"
+
+# The hub's kotlin-stdlib, so a build has one copy of it, else the compiler's own.
+_JVM_STDLIB = JVM_STDLIB or ":compiler_stdlib"
+
+java_import(
+    name = "compiler_stdlib",
+    jars = ["@kotlin_compiler//:lib/kotlin-stdlib.jar"],
+    deps = [":compiler_annotations"],
+)
+
+java_import(
+    name = "compiler_annotations",
+    jars = ["@kotlin_compiler//:lib/annotations-13.0.jar"],
+)
+
+# kotlinc runs on the JVM, so JVM and web compilations can run on any platform with a JDK.
+toolchain(
+    name = "jvm",
+    toolchain = ":toolchain_jvm",
+    toolchain_type = _TYPES + "jvm_toolchain_type",
+)
+
+toolchain(
+    name = "web",
+    toolchain = ":toolchain_web",
+    toolchain_type = _TYPES + "web_toolchain_type",
+)
+
+# cinterop, caches and linking: Apple targets need Xcode, so they use the macOS arm64 distribution.
+toolchain(
+    name = "native_macos_arm64",
+    exec_compatible_with = [
+        "@platforms//os:macos",
+        "@platforms//cpu:arm64",
+    ],
+    toolchain = ":toolchain_native",
+    toolchain_type = _TYPES + "native_toolchain_type",
+)
+
+toolchain(
+    name = "native_klib_macos_arm64",
+    exec_compatible_with = [
+        "@platforms//os:macos",
+        "@platforms//cpu:arm64",
+    ],
+    toolchain = ":toolchain_native",
+    toolchain_type = _TYPES + "native_klib_toolchain_type",
+)
+
+# Klibs compiled here are identical to those compiled on macOS, except for const vals whose value
+# is NaN: the two hosts fold NaN with opposite sign bits.
+toolchain(
+    name = "native_klib_linux_x86_64",
+    exec_compatible_with = [
+        "@platforms//os:linux",
+        "@platforms//cpu:x86_64",
+    ],
+    toolchain = ":toolchain_native_klib_linux_x86_64",
+    toolchain_type = _TYPES + "native_klib_toolchain_type",
+)
+
+# The Linux x86_64 distribution: klib compilation only uses its compiler jar and libraries, so it
+# runs on any JVM.
+toolchain(
+    name = "native_klib_linux_arm64",
+    exec_compatible_with = [
+        "@platforms//os:linux",
+        "@platforms//cpu:aarch64",
+    ],
+    toolchain = ":toolchain_native_klib_linux_x86_64",
+    toolchain_type = _TYPES + "native_klib_toolchain_type",
+)
+
+# Static caches: without Xcode, as on Linux, unless debug info for transparent stepping is wanted.
+toolchain(
+    name = "native_cache_macos_arm64",
+    exec_compatible_with = [
+        "@platforms//os:macos",
+        "@platforms//cpu:arm64",
+    ],
+    target_settings = ["//config:debug_transparent_stepping_disabled"],
+    toolchain = ":toolchain_native_cache",
+    toolchain_type = _TYPES + "native_cache_toolchain_type",
+)
+
+toolchain(
+    name = "native_cache_macos_arm64_xcode",
+    exec_compatible_with = [
+        "@platforms//os:macos",
+        "@platforms//cpu:arm64",
+    ],
+    target_settings = ["//config:debug_transparent_stepping_enabled"],
+    toolchain = ":toolchain_native",
+    toolchain_type = _TYPES + "native_cache_toolchain_type",
+)
+
+# Caches compiled here have the same code as those compiled on macOS. Their debug info lacks
+# transparent stepping (see toolchain.bzl).
+toolchain(
+    name = "native_cache_linux_x86_64",
+    exec_compatible_with = [
+        "@platforms//os:linux",
+        "@platforms//cpu:x86_64",
+    ],
+    target_settings = [
+        "//config:native_caches_on_linux_enabled",
+        "//config:debug_transparent_stepping_disabled",
+    ],
+    toolchain = ":toolchain_native_cache_linux_x86_64",
+    toolchain_type = _TYPES + "native_cache_toolchain_type",
+)
+
+# The same with the Linux arm64 build of Kotlin/Native (kotlin.linux_arm64() in extensions.bzl); its
+# caches are identical too.
+toolchain(
+    name = "native_cache_linux_arm64",
+    exec_compatible_with = [
+        "@platforms//os:linux",
+        "@platforms//cpu:aarch64",
+    ],
+    target_settings = [
+        "//config:native_caches_on_linux_enabled",
+        "//config:debug_transparent_stepping_disabled",
+    ],
+    toolchain = ":toolchain_native_cache_linux_arm64",
+    toolchain_type = _TYPES + "native_cache_toolchain_type",
+)
+
+kotlin_toolchain(
+    name = "toolchain_jvm",
+    android_stdlib = ANDROID_STDLIB or _JVM_STDLIB,
+    builder = _BUILDER,
+    compiler_version = KOTLIN_VERSION,
+    jvm_abi_gen = "@kotlin_compiler//:jvm_abi_gen",
+    jvm_compiler_classpath = ["@kotlin_compiler//:compiler_classpath"],
+    jvm_stdlib = _JVM_STDLIB,
+    ksp = KSP,
+)
+
+kotlin_toolchain(
+    name = "toolchain_web",
+    builder = _BUILDER,
+    compiler_version = KOTLIN_VERSION,
+    jvm_compiler_classpath = ["@kotlin_compiler//:compiler_classpath"],
+    web_stdlibs = {
+        "@kmp_maven_libs//:js_stdlib": "js",
+        "@kmp_maven_libs//:wasm_js_stdlib": "wasm_js",
+    },
+    web_test_libs = {
+        "@kmp_maven_libs//:js_test": "js",
+        "@kmp_maven_libs//:wasm_js_test": "wasm_js",
+    },
+)
+
+kotlin_toolchain(
+    name = "toolchain_native",
+    builder = _BUILDER,
+    compiler_version = KOTLIN_VERSION,
+    konan_data_marker = _KN + ":data/dependencies/.extracted",
+    konan_properties = _KN + ":dist/konan/konan.properties",
+    native_compiler_jar = _KN + ":compiler_jar",
+    native_compiler_patches = [":native_compiler_cache_class_fields_patch"],
+    native_deps = [_KN + ":toolchain_deps"],
+    # The targets the macos-aarch64 distribution ships stdlib and platform library caches for.
+    native_system_caches = {
+        _KN + ":system_cache_" + t: t
+        for t in [
+            "ios_arm64",
+            "ios_simulator_arm64",
+            "macos_arm64",
+        ]
+    },
+    native_platform_defs = {
+        _KN + ":platform_def_" + t: t
+        for t in [
+            "ios_arm64",
+            "ios_simulator_arm64",
+            "ios_x64",
+            "macos_arm64",
+            "macos_x64",
+        ]
+    },
+    native_targets = {
+        _KN + ":target_" + t: t
+        for t in [
+            "ios_arm64",
+            "ios_simulator_arm64",
+            "ios_x64",
+            "macos_arm64",
+            "macos_x64",
+        ]
+    },
+)
+
+kotlin_toolchain(
+    name = "toolchain_native_cache",
+    builder = _BUILDER,
+    compiler_version = KOTLIN_VERSION,
+    konan_data_marker = _KN + ":data/dependencies/.extracted",
+    konan_properties = _KN + ":dist/konan/konan.properties",
+    native_apple_toolchain = _KN + ":apple_toolchain",
+    native_compiler_jar = _KN + ":compiler_jar",
+    native_compiler_patches = [
+        ":native_compiler_apple_targets_patch",
+        ":native_compiler_cache_class_fields_patch",
+    ],
+    native_deps = [_KN + ":cache_deps"],
+    native_host = "macos_arm64",
+    native_system_caches = {
+        _KN + ":system_cache_" + t: t
+        for t in [
+            "ios_arm64",
+            "ios_simulator_arm64",
+            "macos_arm64",
+        ]
+    },
+    native_targets = {
+        _KN + ":target_" + t: t
+        for t in [
+            "ios_arm64",
+            "ios_simulator_arm64",
+            "ios_x64",
+            "macos_arm64",
+            "macos_x64",
+        ]
+    },
+)
+
+kotlin_toolchain(
+    name = "toolchain_native_klib_linux_x86_64",
+    builder = _BUILDER,
+    compiler_version = KOTLIN_VERSION,
+    konan_data_marker = "@kotlin_native_linux_x86_64//:data/dependencies/.extracted",
+    konan_properties = "@kotlin_native_linux_x86_64//:dist/konan/konan.properties",
+    native_compiler_jar = "@kotlin_native_linux_x86_64//:compiler_jar",
+    native_targets = {
+        "@kotlin_native_linux_x86_64//:target_" + t: t
+        for t in [
+            "ios_arm64",
+            "ios_simulator_arm64",
+            "ios_x64",
+            "macos_arm64",
+            "macos_x64",
+        ]
+    },
+)
+
+kotlin_toolchain(
+    name = "toolchain_native_cache_linux_x86_64",
+    builder = _BUILDER,
+    compiler_version = KOTLIN_VERSION,
+    konan_data_marker = "@kotlin_native_linux_x86_64//:data/dependencies/.extracted",
+    konan_properties = "@kotlin_native_linux_x86_64//:dist/konan/konan.properties",
+    native_apple_toolchain = "@kotlin_native_linux_x86_64//:apple_toolchain",
+    native_compiler_jar = "@kotlin_native_linux_x86_64//:compiler_jar",
+    native_compiler_patches = [
+        ":native_compiler_apple_targets_patch",
+        ":native_compiler_cache_class_fields_patch",
+    ],
+    native_deps = ["@kotlin_native_linux_x86_64//:cache_deps"],
+    native_host = "linux_x64",
+    native_system_caches = {
+        "@kotlin_native_linux_x86_64//:system_cache_" + t: t
+        for t in [
+            "ios_arm64",
+            "ios_simulator_arm64",
+            "macos_arm64",
+        ]
+    },
+    native_targets = {
+        "@kotlin_native_linux_x86_64//:target_" + t: t
+        for t in [
+            "ios_arm64",
+            "ios_simulator_arm64",
+            "ios_x64",
+            "macos_arm64",
+            "macos_x64",
+        ]
+    },
+)
+
+kotlin_toolchain(
+    name = "toolchain_native_cache_linux_arm64",
+    builder = _BUILDER,
+    compiler_version = KOTLIN_VERSION,
+    konan_data_marker = "@kotlin_native_linux_aarch64//:data/dependencies/.extracted",
+    konan_properties = "@kotlin_native_linux_aarch64//:dist/konan/konan.properties",
+    native_apple_toolchain = "@kotlin_native_linux_aarch64//:apple_toolchain",
+    native_compiler_jar = "@kotlin_native_linux_aarch64//:compiler_jar",
+    native_compiler_patches = [
+        ":native_compiler_apple_targets_patch_linux_arm64",
+        ":native_compiler_cache_class_fields_patch",
+    ],
+    native_deps = ["@kotlin_native_linux_aarch64//:cache_deps"],
+    native_host = "linux_arm64",
+    native_system_caches = {
+        "@kotlin_native_linux_aarch64//:system_cache_" + t: t
+        for t in [
+            "ios_arm64",
+            "ios_simulator_arm64",
+            "macos_arm64",
+        ]
+    },
+    native_targets = {
+        "@kotlin_native_linux_aarch64//:target_" + t: t
+        for t in [
+            "ios_arm64",
+            "ios_simulator_arm64",
+            "ios_x64",
+            "macos_arm64",
+            "macos_x64",
+        ]
+    },
+)
+
+java_import(
+    name = "native_compiler_linux_x86_64",
+    jars = ["@kotlin_native_linux_x86_64//:compiler_jar"],
+)
+
+# Replaces classes of the compiler's kotlin-native-utils module, compiled as part of it.
+kmp_jvm_library(
+    name = "native_compiler_apple_targets_patch",
+    srcs = {"@kotlin_native_apple_targets_patch//:srcs": "main"},
+    friends = [":native_compiler_linux_x86_64"],
+    module_name = "kotlin-native-utils",
+)
+
+kmp_jvm_library(
+    name = "native_compiler_apple_targets_patch_linux_arm64",
+    srcs = {"@kotlin_native_apple_targets_patch_linux_arm64//:srcs": "main"},
+    friends = [":native_compiler_linux_x86_64"],
+    module_name = "kotlin-native-utils",
+)
+
+kmp_jvm_library(
+    name = "native_compiler_cache_class_fields_patch",
+    srcs = {"@kotlin_native_cache_class_fields_patch//:srcs": "main"},
+    friends = [":native_compiler_linux_x86_64"],
+    # The Kotlin repository compiles its sources with name-based destructuring.
+    kotlinc_opts = [
+        "-opt-in=org.jetbrains.kotlin.ir.symbols.UnsafeDuringIrConstructionAPI",
+        "-Xname-based-destructuring=complete",
+    ],
+    module_name = "org.jetbrains.kotlin_backend.native",
+)

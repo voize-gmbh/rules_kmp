@@ -1,0 +1,22 @@
+load("@rules_java//java:java_binary.bzl", "java_binary")
+
+java_binary(
+    name = "builder",
+    srcs = ["KotlinBuilder.java"],
+    jvm_flags = [
+        "-Xss8m",
+        "-Xmx8g",
+        # Idle workers return their heap to the OS; several output bases may run workers at once.
+        "-XX:+UseG1GC",
+        "-XX:G1PeriodicGCInterval=15000",
+        "-XX:MinHeapFreeRatio=10",
+        "-XX:MaxHeapFreeRatio=30",
+        "-XX:ReservedCodeCacheSize=512m",
+        "-Dfile.encoding=UTF-8",
+        "-Djava.awt.headless=true",
+        "-Didea.io.use.nio2=true",
+        "-Dkotlin.environment.keepalive=true",
+    ],
+    main_class = "de.voize.bazel.kotlin.KotlinBuilder",
+    visibility = ["//visibility:public"],
+)

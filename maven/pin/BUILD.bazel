@@ -1,0 +1,26 @@
+load("@rules_python//python:py_binary.bzl", "py_binary")
+load("@rules_python//python:py_test.bzl", "py_test")
+
+py_binary(
+    name = "pin",
+    srcs = [
+        "lock.py",
+        "pin.py",
+    ],
+    data = ["resolve.gradle"],
+    imports = ["."],
+    main = "pin.py",
+    visibility = ["//visibility:public"],
+)
+
+py_test(
+    name = "pin_test",
+    size = "small",
+    srcs = [
+        "lock.py",
+        "pin.py",
+        "pin_test.py",
+    ],
+    imports = ["."],
+    main = "pin_test.py",
+)

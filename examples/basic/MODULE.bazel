@@ -1,0 +1,67 @@
+module(name = "rules_kmp_example_basic")
+
+bazel_dep(name = "rules_kmp")
+local_path_override(
+    module_name = "rules_kmp",
+    path = "../..",
+)
+
+bazel_dep(name = "rules_android", version = "0.8.0")
+
+# rules_android's SDK repository, read from ANDROID_HOME.
+android_sdk = use_extension("@rules_android//rules/android_sdk_repository:rule.bzl", "android_sdk_repository_extension")
+use_repo(android_sdk, "androidsdk")
+
+kotlin = use_extension("@rules_kmp//kotlin:extensions.bzl", "kotlin")
+use_repo(kotlin, "kotlin_compiler")
+
+maven = use_extension("@rules_kmp//maven:extension.bzl", "maven")
+maven.lock(file = "//:maven_lock.json")
+maven.repository(
+    name = "central",
+    url = "https://repo1.maven.org/maven2",
+)
+
+_PLATFORMS = ["jvm", "android", "ios_arm64", "ios_simulator_arm64", "macos_arm64"]
+
+maven.artifact(
+    coordinates = "org.jetbrains.kotlin:kotlin-stdlib:2.4.21",
+    platforms = _PLATFORMS,
+)
+maven.artifact(
+    coordinates = "org.jetbrains.kotlinx:kotlinx-coroutines-core:1.11.0",
+    platforms = _PLATFORMS,
+)
+maven.artifact(
+    coordinates = "org.jetbrains.kotlinx:kotlinx-serialization-json:1.11.0",
+    platforms = _PLATFORMS,
+)
+maven.artifact(
+    coordinates = "org.jetbrains.kotlin:kotlin-test:2.4.21",
+    platforms = _PLATFORMS,
+)
+maven.artifact(
+    coordinates = "org.jetbrains.kotlinx:kotlinx-coroutines-test:1.11.0",
+    platforms = _PLATFORMS,
+)
+
+# JVM tests: kotlin-test on JUnit 5, and the JUnit Platform rules_kmp's test runner launches.
+maven.artifact(
+    coordinates = "org.jetbrains.kotlin:kotlin-test-junit5:2.4.21",
+    platforms = ["jvm"],
+)
+maven.artifact(
+    coordinates = "org.junit.jupiter:junit-jupiter-engine:5.12.1",
+    platforms = ["jvm"],
+)
+maven.artifact(
+    coordinates = "org.junit.platform:junit-platform-launcher:1.12.1",
+    platforms = ["jvm"],
+)
+
+# Kotlin/Native loads the embeddable build of the serialization plugin.
+maven.artifact(
+    coordinates = "org.jetbrains.kotlin:kotlin-serialization-compiler-plugin-embeddable:2.4.21",
+    platforms = ["tools"],
+)
+use_repo(maven, "maven")

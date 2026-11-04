@@ -1,0 +1,100 @@
+From 4cc66a3ca79a90f3c3dde715b1cedbc06fa13e05 Mon Sep 17 00:00:00 2001
+From: Reuben Morais <reuben.morais@gmail.com>
+Date: Fri, 23 Oct 2026 08:44:37 +0200
+Subject: [PATCH] [K/N] Parse a top-level class once when building cache class
+ fields
+
+buildSerializedClassFields read the proto of the class's top-level
+declaration for every class it was called for. Parsing a top-level class
+parses everything nested in it, so a class with many nested classes was
+parsed once per nested class: quadratic in the size of the class. In a
+module of generated API types this took 69 of the 234 seconds needed to
+build its static cache.
+
+CacheInfoBuilder visits the classes nested in a declaration one after
+another, so it now keeps the last parsed top-level declaration and reuses
+it. The cache it builds is byte-identical.
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+---
+ .../backend/konan/lower/CacheInfoBuilder.kt   |  5 +++-
+ .../CacheSerializationSupport.kt              | 24 +++++++++++++++++--
+ 2 files changed, 26 insertions(+), 3 deletions(-)
+
+diff --git a/kotlin-native/backend.native/compiler/ir/backend.native/src/org/jetbrains/kotlin/backend/konan/lower/CacheInfoBuilder.kt b/kotlin-native/backend.native/compiler/ir/backend.native/src/org/jetbrains/kotlin/backend/konan/lower/CacheInfoBuilder.kt
+index c72649b4a06c..f062d07e2c03 100644
+--- a/kotlin-native/backend.native/compiler/ir/backend.native/src/org/jetbrains/kotlin/backend/konan/lower/CacheInfoBuilder.kt
++++ b/kotlin-native/backend.native/compiler/ir/backend.native/src/org/jetbrains/kotlin/backend/konan/lower/CacheInfoBuilder.kt
+@@ -17,6 +17,7 @@ import org.jetbrains.kotlin.backend.konan.serialization.KonanPartialModuleDeseri
+ import org.jetbrains.kotlin.backend.konan.serialization.SerializedEagerInitializedFile
+ import org.jetbrains.kotlin.backend.konan.serialization.SerializedFileReference
+ import org.jetbrains.kotlin.backend.konan.serialization.SerializedTrivialGetter
++import org.jetbrains.kotlin.backend.konan.serialization.TopLevelDeclarationProtoCache
+ import org.jetbrains.kotlin.backend.konan.serialization.buildSerializedClassFields
+ import org.jetbrains.kotlin.ir.IrAbstractFunctionFactory
+ import org.jetbrains.kotlin.ir.IrBasedFunctionFactory.Companion.isFunctionInterfaceFile
+@@ -33,6 +34,8 @@ internal class CacheInfoBuilder(
+         private val moduleDeserializer: KonanPartialModuleDeserializer,
+         private val irModule: IrModuleFragment
+ ) {
++    private val topLevelDeclarations = TopLevelDeclarationProtoCache()
++
+     fun build() {
+         if (!generationState.config.producePerFileCache)
+             generationState.klibHash = SerializedKlibFingerprint(moduleDeserializer.klib.path.toFile()).klibFingerprint
+@@ -51,7 +54,7 @@ internal class CacheInfoBuilder(
+                             && declaration.isExported && declaration.origin != IrAbstractFunctionFactory.classOrigin
+                     ) {
+                         val declaredFields = generationState.context.getLayoutBuilder(declaration).getDeclaredFields(generationState.llvm)
+-                        generationState.classFields.add(buildSerializedClassFields(declaration, declaredFields, moduleDeserializer))
++                        generationState.classFields.add(buildSerializedClassFields(declaration, declaredFields, moduleDeserializer, topLevelDeclarations))
+                     }
+                 }
+ 
+diff --git a/kotlin-native/backend.native/compiler/ir/backend.native/src/org/jetbrains/kotlin/backend/konan/serialization/CacheSerializationSupport.kt b/kotlin-native/backend.native/compiler/ir/backend.native/src/org/jetbrains/kotlin/backend/konan/serialization/CacheSerializationSupport.kt
+index 8cd6e5020690..d3f8f0796650 100644
+--- a/kotlin-native/backend.native/compiler/ir/backend.native/src/org/jetbrains/kotlin/backend/konan/serialization/CacheSerializationSupport.kt
++++ b/kotlin-native/backend.native/compiler/ir/backend.native/src/org/jetbrains/kotlin/backend/konan/serialization/CacheSerializationSupport.kt
+@@ -168,10 +168,30 @@ internal class CachedEagerInitializedFiles(
+     }
+ }
+ 
++/**
++ * The proto of the top-level declaration last read by [buildSerializedClassFields].
++ *
++ * Parsing a top-level class parses everything nested in it, and its nested classes are visited one after another,
++ * so without this a class with many nested classes is parsed once per nested class.
++ */
++internal class TopLevelDeclarationProtoCache {
++    private var signature: IdSignature? = null
++    private var proto: ProtoDeclaration? = null
++
++    fun getOrRead(signature: IdSignature, read: () -> ProtoDeclaration): ProtoDeclaration {
++        if (signature != this.signature) {
++            proto = read()
++            this.signature = signature
++        }
++        return proto!!
++    }
++}
++
+ internal fun buildSerializedClassFields(
+         irClass: IrClass,
+         fields: List<ClassLayoutBuilder.FieldInfo>,
+-        deserializer: KonanPartialModuleDeserializer
++        deserializer: KonanPartialModuleDeserializer,
++        topLevelDeclarations: TopLevelDeclarationProtoCache,
+ ): SerializedClassFields {
+     val signature = irClass.symbol.signature
+             ?: error("No signature for ${irClass.render()}")
+@@ -182,7 +202,7 @@ internal fun buildSerializedClassFields(
+             ?: error("No declaration for ${topLevelSignature.render()}")
+     val fileReader = fileDeserializationState.fileReader
+     val symbolDeserializer = fileDeserializer.symbolDeserializer
+-    val protoDeclaration = fileReader.declaration(declarationIndex)
++    val protoDeclaration = topLevelDeclarations.getOrRead(topLevelSignature) { fileReader.declaration(declarationIndex) }
+ 
+     val outerClasses = irClass.getOuterClasses(takeOnlyInner = false)
+     require(outerClasses.first().parent is IrFile) { "Local classes are not supported: ${irClass.render()}" }
+-- 
+2.55.0

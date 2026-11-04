@@ -1,0 +1,2 @@
+# Each example is a workspace of its own that depends on rules_kmp.
+ignore_directories(["examples"])

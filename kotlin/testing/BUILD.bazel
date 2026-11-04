@@ -1,0 +1,9 @@
+# The JUnit Platform runner of kmp_jvm_test is compiled by the repository, against the JUnit version
+# it resolves; see kmp_conventions(jvm_test_runner).
+exports_files(
+    [
+        "BazelJUnitRunner.java",
+        "web_test_runner.js",
+    ],
+    visibility = ["//visibility:public"],
+)

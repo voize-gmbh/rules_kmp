@@ -1,0 +1,50 @@
+load("@rules_kmp//kotlin:defs.bzl", "android_options", "kmp_compiler_plugin", "kmp_conventions", "kmp_library", "kmp_native_framework")
+
+kmp_compiler_plugin(
+    name = "serialization",
+    id = "org.jetbrains.kotlinx.serialization",
+    jvm_jars = ["@kotlin_compiler//:serialization_plugin"],
+    native_jars = ["@maven//tools:org_jetbrains_kotlin_kotlin_serialization_compiler_plugin_embeddable"],
+)
+
+kmp_library(
+    name = "greeting",
+    module_name = "example:greeting",
+    targets = [
+        "android",
+        "ios_arm64",
+        "ios_simulator_arm64",
+        "jvm",
+        "macos_arm64",
+    ],
+    # Android host tests need kmp_conventions(android_host_test), which rules_kmp has no default for.
+    android = android_options(
+        host_tests = False,
+        namespace = "example.greeting",
+    ),
+    conventions = kmp_conventions(android_jar = "@androidsdk//:platforms/android-36/android.jar"),
+    plugins = [":serialization"],
+    deps = {
+        "commonMain": [
+            "@maven//:org_jetbrains_kotlinx_kotlinx_coroutines_core",
+            "@maven//:org_jetbrains_kotlinx_kotlinx_serialization_json",
+        ],
+        "commonTest": [
+            "@maven//:org_jetbrains_kotlin_kotlin_test",
+            "@maven//:org_jetbrains_kotlinx_kotlinx_coroutines_test",
+        ],
+    },
+)
+
+[
+    kmp_native_framework(
+        name = "Greeting_" + target,
+        base_name = "Greeting",
+        target = target,
+        deps = [":greeting_" + target],
+    )
+    for target in [
+        "ios_arm64",
+        "ios_simulator_arm64",
+    ]
+]

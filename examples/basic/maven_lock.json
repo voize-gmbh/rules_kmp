@@ -171,6 +171,7 @@
    "url": "https://repo1.maven.org/maven2/org/opentest4j/opentest4j/1.3.0/opentest4j-1.3.0.jar"
   }
  },
+ "inputs_sha256": "10b77ad81e3b5b2fbc9acbd1ad2771301bd0f45cbd0100b3a6041e9bc6690833",
  "platforms": {
   "android": {
    "org.jetbrains.kotlin:kotlin-stdlib": {

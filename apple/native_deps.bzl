@@ -139,8 +139,9 @@ def _ld_flags(flags):
         elif f.startswith("-Wl,"):
             parts = f[len("-Wl,"):].split(",")
             out.append(" ".join(parts))
-        elif f == "-fobjc-link-runtime" or f.startswith("-fobjc-arc"):
-            # clang driver flags; Kotlin/Native links the Objective-C runtime itself.
+        elif f in ("-fobjc-link-runtime", "-pthread") or f.startswith("-fobjc-arc"):
+            # clang driver flags; Kotlin/Native links the Objective-C runtime itself, and threads
+            # are part of libSystem.
             continue
         else:
             out.append(f)

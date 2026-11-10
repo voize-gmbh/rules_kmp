@@ -131,6 +131,13 @@ public final class BazelJUnitRunner {
             .build());
     XmlListener xml = new XmlListener();
     launcher.execute(discovery, xml);
+    // Classpath scanning skips classes that fail to load, e.g. a test whose framework fails while
+    // loading it. A runner that knows which classes hold tests names them, and they must have run.
+    boolean unfiltered = selectors.size() > 0 && (only == null || only.isEmpty()) && totalShards == 1
+        && includeClasses.isEmpty() && excludeClasses.isEmpty();
+    if (unfiltered) {
+      xml.requireClasses(csvProperty("bazel.junit.requiredClasses"));
+    }
     String xmlFile = System.getenv("XML_OUTPUT_FILE");
     if (xmlFile != null) {
       Files.write(Paths.get(xmlFile), xml.toXml().getBytes(StandardCharsets.UTF_8));
@@ -307,6 +314,32 @@ public final class BazelJUnitRunner {
       suites.computeIfAbsent(cls, k -> new ArrayList<>()).add(String.format(
           "    <testcase classname=\"%s\" name=\"%s\" time=\"%.3f\">%s</testcase>",
           esc(cls), esc(name), seconds, body));
+    }
+
+    /** Records a failure for each of the classes that no test of the plan comes from. */
+    void requireClasses(List<String> classes) {
+      Set<String> found = new HashSet<>();
+      if (plan != null) {
+        for (TestIdentifier root : plan.getRoots()) {
+          for (TestIdentifier id : plan.getDescendants(root)) {
+            String cls = className(id.getSource().orElse(null));
+            if (cls != null) {
+              found.add(cls.contains("$") ? cls.substring(0, cls.indexOf('$')) : cls);
+            }
+          }
+        }
+      }
+      for (String cls : classes) {
+        if (!found.contains(cls)) {
+          String message = cls + " holds tests but none of them ran: it failed to load, see the log above";
+          System.err.println("FAILED: " + message);
+          suites.computeIfAbsent(cls, k -> new ArrayList<>()).add(String.format(
+              "    <testcase classname=\"%s\" name=\"discovery\" time=\"0.000\"><failure message=\"%s\"/></testcase>",
+              esc(cls), esc(message)));
+          failed++;
+          total++;
+        }
+      }
     }
 
     String toXml() {

@@ -6,6 +6,7 @@ load(":compile.bzl", "kmp_jvm_library", "kmp_jvm_rewrap")
 load(":conventions.bzl", "file_labels", "require")
 load("//android:android.bzl", "EMPTY_MANIFEST", "GENERATED_PACKAGE")
 load(":kmp.bzl", "maven_label", "test_options")
+load("//maven:publication.bzl", "kmp_publication")
 load(":testing.bzl", "kmp_jvm_tests")
 
 def _jvm(labels, maven, platform = "jvm"):
@@ -65,20 +66,27 @@ def kmp_jvm_module(
         excludes = [],
         maven_platform = "jvm",
         classpath_first = {},
+        maven_compile_versions = False,
         main_class = None,
         jvm_flags = [],
         test = None,
+        publication = None,
+        android_wrapper = False,
         on_compilation = None,
         visibility = None,
         tags = []):
     """Declares a Kotlin/JVM module laid out like Gradle's kotlin("jvm") projects.
 
-    Creates `<name>_jvm` (aliased as `<name>`), a manual `<name>_android` wrapper for Android
-    consumers, `<name>_test`, optionally
-    `<name>_testfixtures_jvm`, and `<name>_bin` (a java_binary) when main_class is set.
+    Creates `<name>_jvm` (aliased as `<name>`), `<name>_test`, optionally
+    `<name>_testfixtures_jvm`, `<name>_bin` (a java_binary) when main_class is set, and with
+    `android_wrapper` a manual `<name>_android` wrapper for Android consumers (only for modules
+    Android code depends on: its deps resolve in the hub's android package).
     `maven_platform` selects the package of the hub repository (kmp_conventions(maven)) that
-    third-party deps resolve to. `on_compilation` is called for the main and the test compilation,
-    as for kmp_library.
+    third-party deps resolve to; for a platform of maven.lock(platforms), the module's targets and
+    everything they depend on are built for it (see //maven:platform.bzl). `maven_compile_versions`
+    is kmp_jvm_library's, for every compilation. `on_compilation` is called for the main and the
+    test compilation, as for kmp_library. `publication` (publication_options()) declares
+    `<name>_publication`, the module's Maven publication (see kmp_publication).
     """
     maven = conventions.maven
     _mvn = lambda labels: [l.replace(maven + "//jvm:", "%s//%s:" % (maven, maven_platform)) for l in _jvm(labels, maven)]
@@ -86,10 +94,12 @@ def kmp_jvm_module(
         visibility = ["//visibility:public"]
     test = test or test_options()
     opts = ["-opt-in=" + o for o in opt_ins] + kotlinc_opts
+    platform = {} if maven_platform == "jvm" else {"maven_platform": maven_platform}
     lib = name + "_jvm"
     kmp_jvm_library(
         name = lib,
         classpath_first = classpath_first.get("main", []),
+        maven_compile_versions = maven_compile_versions,
         srcs = dict(_srcs(src_dirs, excludes), **{s: "main" for s in extra_srcs}),
         srcjars = {j: "main" for j in srcjars},
         fragments = ["main"],
@@ -103,8 +113,30 @@ def kmp_jvm_module(
         module_name = module_name,
         visibility = visibility,
         tags = tags,
+        **platform
     )
     native.alias(name = name, actual = ":" + lib, visibility = visibility)
+    if publication:
+        kmp_publication(
+            name = name + "_publication",
+            coordinates = module_name,
+            kind = "jvm",
+            platforms = ["jvm"],
+            artifacts = {":" + lib: "jvm"},
+            srcs = {f: "jvm=" for f in _dedupe(
+                list(_srcs(src_dirs, excludes).keys()) + extra_srcs + srcjars +
+                # Gradle's sources jar takes everything in the source directories.
+                native.glob([d + "/**" for d in src_dirs], exclude = excludes, allow_empty = True),
+            )},
+            api = {l: "jvm" for l in _mvn(exports)},
+            implementation = {l: "jvm" for l in _mvn(deps)},
+            runtime_only = {l: "jvm" for l in _mvn(runtime_only)},
+            jars = publication.jars,
+            pom_name = publication.name,
+            pom_description = publication.description,
+            visibility = visibility,
+            tags = tags + ["manual"],
+        )
     if on_compilation:
         on_compilation(struct(
             platform = "jvm",
@@ -114,28 +146,29 @@ def kmp_jvm_module(
             compilation = ":" + lib,
             kotlinc_opts = opts,
         ))
-    stdlib = maven_label(conventions, "android", "org_jetbrains_kotlin_kotlin_stdlib")
-    android_deps = [d for d in _jvm(deps, maven, "android") if d != stdlib] + [stdlib]
-    kmp_jvm_rewrap(
-        name = name + "_android_jar",
-        lib = ":" + lib,
-        deps = android_deps,
-        exports = _jvm(exports, maven, "android"),
-        runtime_deps = _jvm(runtime_only, maven, "android"),
-        visibility = visibility,
-        tags = tags + ["manual"],
-    )
-    # Exports only the jar (and through it Gradle's api); the rest are deps so their resources
-    # and native libraries still reach an app.
-    android_library(
-        name = name + "_android",
-        exports = [":" + name + "_android_jar"],
-        deps = android_deps + [d for d in _jvm(runtime_only, maven, "android") if d not in android_deps],
-        manifest = EMPTY_MANIFEST,
-        custom_package = GENERATED_PACKAGE,
-        visibility = visibility,
-        tags = tags + ["manual"],
-    )
+    if android_wrapper:
+        stdlib = maven_label(conventions, "android", "org_jetbrains_kotlin_kotlin_stdlib")
+        android_deps = [d for d in _jvm(deps, maven, "android") if d != stdlib] + [stdlib]
+        kmp_jvm_rewrap(
+            name = name + "_android_jar",
+            lib = ":" + lib,
+            deps = android_deps,
+            exports = _jvm(exports, maven, "android"),
+            runtime_deps = _jvm(runtime_only, maven, "android"),
+            visibility = visibility,
+            tags = tags + ["manual"],
+        )
+        # Exports only the jar (and through it Gradle's api); the rest are deps so their resources
+        # and native libraries still reach an app.
+        android_library(
+            name = name + "_android",
+            exports = [":" + name + "_android_jar"],
+            deps = android_deps + [d for d in _jvm(runtime_only, maven, "android") if d not in android_deps],
+            manifest = EMPTY_MANIFEST,
+            custom_package = GENERATED_PACKAGE,
+            visibility = visibility,
+            tags = tags + ["manual"],
+        )
 
     fixtures = []
     if test_fixtures:
@@ -144,16 +177,18 @@ def kmp_jvm_module(
             testonly = True,
             srcs = {f: "main" for f in native.glob(["src/testFixtures/kotlin/**/*.kt"], allow_empty = True)},
             fragments = ["main"],
-            deps = [":" + lib] + _jvm(test_fixtures_deps, maven),
+            deps = [":" + lib] + _mvn(test_fixtures_deps),
             # java-test-fixtures gives consumers of the fixtures the main classes too.
             exports = [":" + lib],
             friends = [":" + lib],
+            maven_compile_versions = maven_compile_versions,
             resources = _resources(["src/testFixtures/resources"], conventions),
             plugins = plugins,
             kotlinc_opts = opts,
             module_name = module_name + "_testFixtures",
             visibility = visibility,
             tags = tags,
+            **platform
         )
         fixtures = [":" + name + "_testfixtures_jvm"]
 
@@ -169,6 +204,8 @@ def kmp_jvm_module(
             main_class = main_class,
             runtime_deps = [":" + lib],
             jvm_flags = jvm_flags,
+            # Without build-data.properties, whose build time --stamp would change on every build.
+            stamp = 0,
             visibility = visibility,
             tags = tags,
         )
@@ -183,6 +220,7 @@ def kmp_jvm_module(
             name = name + "_test_lib",
             testonly = True,
             classpath_first = classpath_first.get("test", []),
+            maven_compile_versions = maven_compile_versions,
             srcs = test_srcs,
             fragments = ["main"],
             deps = _dedupe([":" + lib] + fixtures + _mvn(deps + test_deps) + framework_deps),
@@ -194,6 +232,7 @@ def kmp_jvm_module(
             kotlinc_opts = opts,
             module_name = module_name + "_test",
             tags = tags + test.tags,
+            **platform
         )
         kmp_jvm_tests(
             name = name + "_test",
@@ -201,6 +240,7 @@ def kmp_jvm_module(
             test_jars = [":" + name + "_test_lib"],
             deps = [":" + name + "_test_lib", require(conventions, "jvm_test_runner", "a JVM test")] + test.runtime_deps.get("jvm", []),
             data = file_labels(conventions, native.glob(["src/*/resources/**"], allow_empty = True)) + test.data,
+            tools = test.tools,
             resource_dirs = ["%s/%s" % (native.package_name(), d) for d in test_resource_dirs + resource_dirs],
             own_libs = [":" + lib],
             jvm_flags = test.jvm_flags,
@@ -211,6 +251,7 @@ def kmp_jvm_module(
             shard_count = test.shard_count,
             tags = tags + test.tags + (["external"] if test.requires_network else []),
             flaky = test.flaky,
+            **(platform | ({"main_class": test.main_class} if test.main_class else {}))
         )
         if on_compilation:
             on_compilation(struct(

@@ -14,10 +14,20 @@ where they build every module, but they have seen little use outside it. Expect 
 - `kmp_jvm_module`, `kmp_jvm_library`, `kmp_jvm_test`: plain Kotlin/JVM.
 - `kmp_native_framework`, `kmp_cinterop`, `kmp_native_test`: Kotlin/Native for iOS and macOS,
   with Apple frameworks, C and Objective-C interop, and tests on the host or an iOS simulator.
-- `kmp_compiler_plugin`, `kmp_ksp`: compiler plugins and KSP.
+- `kmp_compiler_plugin`, `kmp_ksp`: compiler plugins and KSP, per platform and for the common
+  platform as Gradle's metadata compilation runs it.
+- `kmp_android_aar`, `maven_pom`: a module's Android target as the AAR the Android Gradle plugin
+  publishes, and a POM listing the Maven coordinates of its dependencies.
 - A Maven extension that pins third-party libraries for each platform. `bazel run @maven//:pin`
   resolves the declared artifacts with Gradle, which picks the right variant of each library for
-  each platform (klibs for Kotlin/Native, AARs for Android), and writes a lock file.
+  each platform (klibs for Kotlin/Native, AARs for Android), and writes a lock file;
+  `bazel run @maven//:pin_check` fails when the lock was pinned from other declarations. Code
+  compiles against the library versions it runs with. Gradle resolves each module's compile
+  classpath on its own and can compile against lower versions: `maven.compile_version` records
+  them for compilations with `maven_compile_versions = True`, which mirror a Gradle build. A
+  validation action fails the build of any other compilation that sees a library at another
+  version than it runs with. The lock adds the deployment module of every Quarkus extension a JVM
+  platform resolves, for the rules that package Quarkus applications.
 
 ## Kotlin version
 

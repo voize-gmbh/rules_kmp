@@ -51,6 +51,7 @@ KtCompilationInfo = provider(
         "classpath": "depset[File]: the compile classpath, in the order kotlinc saw it.",
         "class_jar": "File: the full class jar.",
         "friend_jars": "list[File]: class jars whose internal declarations the sources see.",
+        "jvm_target": "str: the -jvm-target it was compiled for.",
     },
 )
 

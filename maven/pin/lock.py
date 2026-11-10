@@ -8,7 +8,9 @@ runtime_deps the further edges of the runtime graph.
 import collections
 import functools
 import os
+import posixpath
 import re
+import urllib.parse
 import zipfile
 
 LOCK_VERSION = 1
@@ -173,6 +175,79 @@ def add_pod_links(modules, manifests, in_sdk):
             modules[ga]["link_pods"] = sorted(pods)
 
 
+QUARKUS_DESCRIPTOR = "META-INF/quarkus-extension.properties"
+
+
+def _unescape(text):
+    return re.sub(r"\\(u[0-9a-fA-F]{4}|.)", lambda m: chr(int(m.group(1)[1:], 16)) if len(m.group(1)) == 5
+                  else {"n": "\n", "t": "\t", "r": "\r", "f": "\f"}.get(m.group(1), m.group(1)), text)
+
+
+def java_properties(text):
+    """The entries of a java.util.Properties file: comments, escapes and continued lines."""
+    props = {}
+    logical = ""
+    for raw in text.splitlines():
+        line = raw.lstrip()
+        if not logical and (not line or line[0] in "#!"):
+            continue
+        trailing = len(line) - len(line.rstrip("\\"))
+        if trailing % 2:
+            logical += line[:-1]
+            continue
+        logical += line
+        m = re.match(r"((?:\\.|[^=:\s\\])*)\s*[=:]?\s*(.*)$", logical)
+        props[_unescape(m.group(1))] = _unescape(m.group(2))
+        logical = ""
+    return props
+
+
+def _module_coordinates(coords):
+    """group:module:version[:classifier] of a Quarkus descriptor's group:artifact[:classifier:type]:version."""
+    parts = coords.split(":")
+    if len(parts) == 3:
+        return coords
+    if len(parts) == 5:
+        group, artifact, classifier, _, version = parts
+        return ":".join([group, artifact, version] + ([classifier] if classifier else []))
+    raise ValueError("unexpected coordinates in a Quarkus extension descriptor: " + coords)
+
+
+def quarkus_descriptor(path):
+    """The Quarkus extension descriptor of a jar, or None: deployment module, conditional
+    dependencies (group:module:version) and the modules a conditional dependency itself needs on the
+    classpath to be added (group:module)."""
+    with zipfile.ZipFile(path) as z:
+        if QUARKUS_DESCRIPTOR not in z.namelist():
+            return None
+        props = java_properties(z.read(QUARKUS_DESCRIPTOR).decode())
+    deployment = props.get("deployment-artifact")
+    return {
+        "deployment": _module_coordinates(deployment) if deployment else None,
+        "conditional": [_module_coordinates(c) for c in props.get("conditional-dependencies", "").split()],
+        "condition": sorted(set(re.split(r"[\s,]+", props.get("dependency-condition", "").strip())) - {""}),
+    }
+
+
+def quarkus_extensions(modules):
+    """group:module -> quarkus_descriptor() of each Quarkus extension among a JVM platform's modules.
+
+    A Quarkus extension is a runtime module whose jar has META-INF/quarkus-extension.properties; its
+    deployment module holds the build steps that run when an application is packaged.
+
+    Args:
+      modules: platform_modules() of a JVM platform.
+    """
+    out = {}
+    for ga, entry in sorted(modules.items()):
+        for name, path in sorted(entry["files"].items()):
+            if name.endswith(".jar"):
+                descriptor = quarkus_descriptor(path)
+                if descriptor:
+                    out[ga] = descriptor
+    return out
+
+
 def break_cycles(modules, log):
     """Removes back edges so the dependency graph is acyclic (Bazel forbids cycles)."""
     state = {}
@@ -202,15 +277,20 @@ def break_cycles(modules, log):
                 stack.append((nxt, edges(nxt)))
 
 
-def compatible(a, b, group=""):
-    """Same major version (same minor for 0.x and Kotlin), i.e. one build may stand in for the other."""
-    pa, pb = re.split(r"[.\-]", a), re.split(r"[.\-]", b)
-    n = 2 if pa[0] == "0" or group == "org.jetbrains.kotlin" else 1
-    return pa[:n] == pb[:n]
+# What makes two entries of a module resolve the same: same jars, same dependencies.
+_RESOLUTION = ("version", "deps", "runtime_deps", "compile_version", "link_pods",
+               "quarkus_deployment", "quarkus_conditional", "quarkus_condition")
+
+
+def _same_resolution(a, b):
+    return (all(a.get(k) == b.get(k) for k in _RESOLUTION)
+            and sorted(a["files"]) == sorted(b["files"])
+            and sorted(a.get("compile_files", {})) == sorted(b.get("compile_files", {})))
 
 
 def alias_overlays(platforms, overlays):
-    """Points an overlay platform's modules at its base platform where their versions are compatible.
+    """Points an overlay platform's modules that resolve exactly as on its base platform at the base's
+    targets. The others keep their own entries: an overlay runs and compiles against what it resolved.
 
     Args:
       platforms: platform -> group:module -> entry.
@@ -221,7 +301,7 @@ def alias_overlays(platforms, overlays):
         modules = platforms.get(overlay, {})
         for ga, entry in sorted(modules.items()):
             b = base.get(ga)
-            if b and compatible(b["version"], entry["version"], ga.split(":")[0]):
+            if b and "alias" not in b and _same_resolution(b, entry):
                 modules[ga] = {"alias": base_name}
 
 
@@ -263,6 +343,57 @@ def lock_entries(platforms):
                 e["compile_files"] = file_ids(entry["compile_version"], entry["compile_files"])
             if "link_pods" in entry:
                 e["link_pods"] = entry["link_pods"]
+            for key in ("quarkus_deployment", "quarkus_conditional", "quarkus_condition"):
+                if key in entry:
+                    e[key] = entry[key]
             pout[ga] = e
         out[platform] = pout
     return out, artifacts
+
+
+def publication_versions(entries, infos):
+    """Files the module metadata of one version publishes under another, with that version.
+
+    Guava's 33.5.0-jre metadata gives Android consumers ../33.5.0-android/guava-33.5.0-android.jar:
+    the file's coordinates are 33.5.0-android, and so are those of an entry that uses only such
+    files. The URL loses its "..".
+
+    Args:
+      entries: platform -> group:module -> lock entry (see lock_entries).
+      infos: file id -> {"url", "sha256", "file"} (see pin.artifact_infos).
+
+    Returns:
+      (entries, infos) with the files and versions moved.
+    """
+    renamed = {}
+    out_infos = {}
+    for fid, info in infos.items():
+        group, module, version, name = fid.split(":", 3)
+        url = urllib.parse.urlsplit(info["url"])
+        path = posixpath.normpath(url.path)
+        parts = path.split("/")
+        published = parts[-2] if len(parts) > 3 and parts[-3] == module and parts[-1] == name else version
+        if published != version and path.endswith("/%s/%s/%s/%s" % (group.replace(".", "/"), module, published, name)):
+            new = "%s:%s:%s:%s" % (group, module, published, name)
+            renamed[fid] = new
+            info = dict(info, url=urllib.parse.urlunsplit(url._replace(path=path)))
+            fid = new
+        if fid in out_infos and out_infos[fid]["sha256"] != info["sha256"]:
+            raise SystemExit("%s has two sha256s: %s and %s" % (fid, out_infos[fid]["sha256"], info["sha256"]))
+        out_infos[fid] = info
+    out = {}
+    for platform, modules in entries.items():
+        pout = {}
+        for ga, entry in modules.items():
+            entry = dict(entry)
+            for files_key, version_key_ in (("files", "version"), ("compile_files", "compile_version")):
+                if files_key not in entry:
+                    continue
+                files = [renamed.get(f, f) for f in entry[files_key]]
+                versions = {f.split(":", 3)[2] for f in files}
+                if any(f in renamed for f in entry[files_key]) and len(versions) == 1:
+                    entry[version_key_] = versions.pop()
+                entry[files_key] = files
+            pout[ga] = entry
+        out[platform] = pout
+    return out, dict(sorted(out_infos.items()))

@@ -36,10 +36,13 @@ def _maven_jar_impl(ctx):
         java_common.merge(infos) if len(infos) > 1 else infos[0],
     ]
 
+_AVAILABLE_AT = attr.string(doc = "group:artifact:version of the platform module a Kotlin Multiplatform root module points to.")
+
 maven_jar = rule(
     implementation = _maven_jar_impl,
     attrs = {
         "coordinates": attr.string(),
+        "available_at": _AVAILABLE_AT,
         "jars": attr.label_list(allow_files = [".jar"]),
         "compile_jars": attr.label_list(
             allow_files = [".jar"],
@@ -94,6 +97,7 @@ maven_klib = rule(
     implementation = _maven_klib_impl,
     attrs = {
         "coordinates": attr.string(),
+        "available_at": _AVAILABLE_AT,
         "klibs": attr.label_list(allow_files = [".klib"]),
         "deps": attr.label_list(providers = [KlibInfo]),
         "link_inputs": attr.label_list(

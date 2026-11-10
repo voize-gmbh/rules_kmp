@@ -1,6 +1,8 @@
+import json
 import os
 import tempfile
 import unittest
+import zipfile
 
 import lock
 import pin
@@ -108,17 +110,34 @@ class GraphTest(unittest.TestCase):
         lock.break_cycles(modules, lambda _: None)
         self.assertEqual([modules[m]["deps"] for m in ("g:a", "g:b", "g:c")], [["g:b"], ["g:c"], []])
 
-    def test_overlay_modules_compatible_with_the_base_alias_it(self):
+    def test_overlay_modules_that_resolve_as_on_the_base_alias_it(self):
         platforms = {
-            "jvm": {"g:lib": entry("1.4"), "g:zero": entry("0.4"), "org.jetbrains.kotlin:k": entry("2.3.0")},
-            "jvm_x": {"g:lib": entry("1.2"), "g:zero": entry("0.3"), "org.jetbrains.kotlin:k": entry("2.4.0"),
-                      "g:own": entry("1")},
+            "jvm": {"g:lib": entry("1.4", "g:dep"), "g:dep": entry("1")},
+            "jvm_x": {"g:lib": entry("1.4", "g:dep"), "g:dep": entry("1"), "g:own": entry("1")},
         }
         lock.alias_overlays(platforms, {"jvm_x": "jvm"})
         self.assertEqual(platforms["jvm_x"]["g:lib"], {"alias": "jvm"})
-        self.assertEqual(platforms["jvm_x"]["g:zero"]["version"], "0.3")
-        self.assertEqual(platforms["jvm_x"]["org.jetbrains.kotlin:k"]["version"], "2.4.0")
+        self.assertEqual(platforms["jvm_x"]["g:dep"], {"alias": "jvm"})
         self.assertEqual(platforms["jvm_x"]["g:own"]["version"], "1")
+
+    def test_overlay_modules_at_another_version_keep_their_entry(self):
+        platforms = {
+            "jvm": {"g:older": entry("1.10.0"), "g:newer": entry("1.4")},
+            "jvm_x": {"g:older": entry("1.14.1"), "g:newer": entry("1.2")},
+        }
+        lock.alias_overlays(platforms, {"jvm_x": "jvm"})
+        self.assertEqual(platforms["jvm_x"]["g:older"]["version"], "1.14.1")
+        self.assertEqual(platforms["jvm_x"]["g:newer"]["version"], "1.2")
+
+    def test_overlay_modules_with_other_dependencies_or_compile_version_keep_their_entry(self):
+        compiled = dict(entry("2"), compile_version="1", compile_files={"a-1.jar": "/a1"})
+        platforms = {
+            "jvm": {"g:deps": entry("1", "g:x"), "g:cv": compiled},
+            "jvm_x": {"g:deps": entry("1"), "g:cv": entry("2")},
+        }
+        lock.alias_overlays(platforms, {"jvm_x": "jvm"})
+        self.assertEqual(platforms["jvm_x"]["g:deps"]["deps"], [])
+        self.assertNotIn("compile_version", platforms["jvm_x"]["g:cv"])
 
     def test_aliased_entries_name_no_artifacts(self):
         platforms = {
@@ -189,6 +208,21 @@ class GradleRequestTest(unittest.TestCase):
             pin.gradle_request(config(artifacts=[artifact("g:a:1", ["linux_arm64"])]))
 
 
+class InputsTest(unittest.TestCase):
+    CONFIG = {"lock": "maven_lock.json", "platforms": {}, "jvm_version": 21, "repositories": [],
+              "artifacts": [{"coordinates": "g:a:1", "platforms": ["jvm"]}], "compile_versions": [],
+              "omit_dependencies": []}
+
+    def test_a_lock_is_current_only_for_the_declarations_it_was_pinned_from(self):
+        with tempfile.TemporaryDirectory() as d:
+            path = pin.Path(d) / "maven_lock.json"
+            self.assertFalse(pin.is_current(self.CONFIG, path))
+            path.write_text(json.dumps({"inputs_sha256": pin.inputs_sha256(self.CONFIG), "artifacts": {}}))
+            self.assertTrue(pin.is_current(dict(reversed(list(self.CONFIG.items()))), path))
+            bumped = dict(self.CONFIG, artifacts=[{"coordinates": "g:a:2", "platforms": ["jvm"]}])
+            self.assertFalse(pin.is_current(bumped, path))
+
+
 class FakeRepositories(pin.Repositories):
     def __init__(self, repositories, serves):
         super().__init__(repositories)
@@ -233,6 +267,62 @@ class ArtifactInfosTest(unittest.TestCase):
         self.assertEqual(infos["g:a:1:a-1.jar"]["url"], "https://new/g/a/1/a-1.jar")
 
 
+    def test_an_artifact_renamed_by_its_publication_version_keeps_its_url(self):
+        jar = self.artifact("a-1-android.jar", b"jar")
+        repos = FakeRepositories([{"name": "r", "url": "https://r", "groups": []}], {})
+        previous = {"g:a:1-android:a-1-android.jar": {
+            "url": "https://r/g/a/1-android/a-1-android.jar", "sha256": pin.sha256(jar.path), "file": "a-1-android.jar"}}
+        infos = pin.artifact_infos({"g:a:1:a-1-android.jar": jar}, repos, previous)
+        self.assertEqual(repos.looked_up, [])
+        self.assertEqual(infos["g:a:1:a-1-android.jar"]["url"], "https://r/g/a/1-android/a-1-android.jar")
+
+
+class PublicationVersionsTest(unittest.TestCase):
+    def test_files_published_under_another_version_take_its_coordinates(self):
+        infos = {
+            "com.google.guava:guava:33.5.0-jre:guava-33.5.0-android.jar": {
+                "url": "https://r/com/google/guava/guava/33.5.0-jre/../33.5.0-android/guava-33.5.0-android.jar",
+                "sha256": "a", "file": "guava-33.5.0-android.jar"},
+            "com.google.guava:guava:33.5.0-jre:guava-33.5.0-jre.jar": {
+                "url": "https://r/com/google/guava/guava/33.5.0-jre/guava-33.5.0-jre.jar", "sha256": "j",
+                "file": "guava-33.5.0-jre.jar"},
+            "g:b:1:b.aar": {"url": "https://r/g/b/1/b-android-1.aar", "sha256": "b", "file": "b.aar"},
+        }
+        entries = {
+            "android": {
+                "com.google.guava:guava": {"version": "33.5.0-jre", "deps": [], "runtime_deps": [],
+                                           "files": ["com.google.guava:guava:33.5.0-jre:guava-33.5.0-android.jar"]},
+                "g:b": {"version": "1", "deps": [], "runtime_deps": [], "files": ["g:b:1:b.aar"]},
+            },
+            "jvm": {"com.google.guava:guava": {"version": "33.5.0-jre", "deps": [], "runtime_deps": [],
+                                               "files": ["com.google.guava:guava:33.5.0-jre:guava-33.5.0-jre.jar"]}},
+        }
+        entries, infos = lock.publication_versions(entries, infos)
+        self.assertEqual(entries["android"]["com.google.guava:guava"]["version"], "33.5.0-android")
+        self.assertEqual(entries["android"]["com.google.guava:guava"]["files"],
+                         ["com.google.guava:guava:33.5.0-android:guava-33.5.0-android.jar"])
+        self.assertEqual(infos["com.google.guava:guava:33.5.0-android:guava-33.5.0-android.jar"]["url"],
+                         "https://r/com/google/guava/guava/33.5.0-android/guava-33.5.0-android.jar")
+        self.assertEqual(entries["jvm"]["com.google.guava:guava"]["version"], "33.5.0-jre")
+        self.assertEqual(entries["android"]["g:b"]["version"], "1")
+        self.assertEqual(sorted(infos), [
+            "com.google.guava:guava:33.5.0-android:guava-33.5.0-android.jar",
+            "com.google.guava:guava:33.5.0-jre:guava-33.5.0-jre.jar",
+            "g:b:1:b.aar",
+        ])
+
+
+    def test_a_moved_file_that_differs_from_the_one_at_its_version_fails(self):
+        infos = {
+            "g:a:1-jre:a-1-android.jar": {"url": "https://r/g/a/1-jre/../1-android/a-1-android.jar", "sha256": "x",
+                                          "file": "a-1-android.jar"},
+            "g:a:1-android:a-1-android.jar": {"url": "https://r/g/a/1-android/a-1-android.jar", "sha256": "y",
+                                              "file": "a-1-android.jar"},
+        }
+        with self.assertRaises(SystemExit):
+            lock.publication_versions({}, infos)
+
+
 class RepositoriesTest(unittest.TestCase):
     def test_group_filters_keep_the_declared_order(self):
         repos = pin.Repositories([
@@ -241,6 +331,83 @@ class RepositoriesTest(unittest.TestCase):
         ])
         self.assertEqual([r["name"] for r in repos.candidates("androidx.core")], ["google", "central"])
         self.assertEqual([r["name"] for r in repos.candidates("com.google.guava")], ["central"])
+
+    def test_published_checksums_get_back_their_leading_zeros(self):
+        class Served(pin.Repositories):
+            def fetch(self, url, repo):
+                return json.dumps({"variants": [{"files": [{"name": "a-1.jar", "url": "a-1.jar", "sha256": "f" * 63}]}]})
+
+        repos = Served([{"name": "central", "url": "https://c", "groups": []}])
+        self.assertEqual(repos.urls("g", "a", "1", ["a-1.jar"]), {"a-1.jar": ("https://c/g/a/1/a-1.jar", "0" + "f" * 63)})
+
+
+class QuarkusTest(unittest.TestCase):
+    def test_properties_unescape_and_join_continued_lines(self):
+        props = lock.java_properties("# comment\na\\:b=c\\:d\nlong = x,\\\n    y\nu=\\u0041\n")
+        self.assertEqual(props, {"a:b": "c:d", "long": "x,y", "u": "A"})
+
+    def test_descriptors_name_the_deployment_and_conditional_modules(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            ext, plain = os.path.join(tmp, "ext.jar"), os.path.join(tmp, "plain.jar")
+            write_jar(ext, "deployment-artifact=io.quarkus\\:quarkus-rest-deployment\\:3.1\n"
+                           "conditional-dependencies=io.quarkus\\:quarkus-rest-kotlin\\:\\:jar\\:3.1\n")
+            write_jar(plain, None)
+            modules = {
+                "io.quarkus:quarkus-rest": {"version": "3.1", "files": {"quarkus-rest-3.1.jar": ext}},
+                "g:plain": {"version": "1", "files": {"plain-1.jar": plain}},
+                "g:pom": {"version": "1", "files": {}},
+            }
+            self.assertEqual(lock.quarkus_extensions(modules), {"io.quarkus:quarkus-rest": {
+                "deployment": "io.quarkus:quarkus-rest-deployment:3.1",
+                "conditional": ["io.quarkus:quarkus-rest-kotlin:3.1"],
+                "condition": [],
+            }})
+
+    def test_resolution_adds_deployments_and_conditional_dependencies_the_platform_can_enable(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            jars = {}
+            for name, descriptor in {
+                "rest": "deployment-artifact=q\\:rest-deployment\\:1\n"
+                        "conditional-dependencies=q\\:rest-kotlin\\:\\:jar\\:1 q\\:rest-hibernate\\:\\:jar\\:1\n",
+                "kotlin": "deployment-artifact=q\\:kotlin-deployment\\:1\n",
+                "rest-kotlin": "deployment-artifact=q\\:rest-kotlin-deployment\\:1\ndependency-condition=q\\:kotlin\n",
+                "rest-hibernate": "deployment-artifact=q\\:rest-hibernate-deployment\\:1\ndependency-condition=q\\:hibernate\n",
+            }.items():
+                jars[name] = os.path.join(tmp, name + ".jar")
+                write_jar(jars[name], descriptor)
+            requests = []
+
+            def run_gradle(gradle, java_home, request):
+                requests.append(request)
+                out = {}
+                for r in request["resolutions"]:
+                    modules = [d["coordinates"].split(":")[1] for d in r["dependencies"]]
+                    out[r["name"]] = result(*[component("q:" + m, "1") for m in modules],
+                                            files=[("q:%s:1" % m, jars[m]) for m in modules if m in jars])
+                return out
+
+            original = pin.run_gradle
+            pin.run_gradle = run_gradle
+            try:
+                platforms = pin.resolve(config(artifacts=[artifact("q:rest:1", ["jvm"]), artifact("q:kotlin:1", ["jvm"])]),
+                                        "gradle", "jdk")
+            finally:
+                pin.run_gradle = original
+            jvm = platforms["jvm"]
+            self.assertEqual(sorted(jvm), ["q:kotlin", "q:kotlin-deployment", "q:rest", "q:rest-deployment",
+                                           "q:rest-kotlin", "q:rest-kotlin-deployment"])
+            self.assertEqual(jvm["q:rest"]["quarkus_deployment"], "q:rest-deployment")
+            self.assertEqual(jvm["q:rest"]["quarkus_conditional"], ["q:rest-kotlin"])
+            self.assertEqual(jvm["q:rest-kotlin"]["quarkus_condition"], ["q:kotlin"])
+            probes = [r for req in requests for r in req["resolutions"] if r["name"] == "jvm/quarkus_conditional"]
+            self.assertTrue(probes and all(not r["transitive"] for r in probes))
+
+
+def write_jar(path, descriptor):
+    with zipfile.ZipFile(path, "w") as z:
+        z.writestr("a/A.class", b"")
+        if descriptor is not None:
+            z.writestr(lock.QUARKUS_DESCRIPTOR, descriptor)
 
 
 if __name__ == "__main__":

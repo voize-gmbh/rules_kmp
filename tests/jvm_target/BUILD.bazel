@@ -1,0 +1,83 @@
+load("@kmp_maven_libs//:defs.bzl", "JVM_STDLIB")
+load("@rules_java//java:java_import.bzl", "java_import")
+load("@rules_python//python:py_test.bzl", "py_test")
+load("//kotlin:defs.bzl", "kmp_jvm_library", "kmp_ksp", "kmp_publication", "kotlin_toolchain", "maven_repository")
+load("//kotlin:version.bzl", "KOTLIN_VERSION")
+load(":jvm_target_test.bzl", "ksp_jvm_target_test", "with_jvm_17")
+
+# The default JVM toolchain with jvm_target 17. Not registered: the targets below select it with
+# --extra_toolchains.
+kotlin_toolchain(
+    name = "toolchain_jvm_17",
+    builder = "//kotlin/worker:builder",
+    compiler_version = KOTLIN_VERSION,
+    jvm_abi_gen = "@kotlin_compiler//:jvm_abi_gen",
+    jvm_compiler_classpath = ["@kotlin_compiler//:compiler_classpath"],
+    jvm_stdlib = JVM_STDLIB or "//kotlin/toolchains:compiler_stdlib",
+    jvm_target = "17",
+    # Only analysed: the test reads KSP's command line without running it.
+    ksp = ":no_ksp",
+)
+
+toolchain(
+    name = "jvm_17",
+    toolchain = ":toolchain_jvm_17",
+    toolchain_type = "//kotlin:jvm_toolchain_type",
+)
+
+java_import(
+    name = "no_ksp",
+    jars = ["//maven:empty.jar"],
+)
+
+kmp_jvm_library(
+    name = "lib",
+    srcs = {
+        "Helper.java": "main",
+        "Lib.kt": "main",
+    },
+    fragments = ["main"],
+    module_name = "rules_kmp.tests:lib",
+    tags = ["manual"],
+)
+
+kmp_publication(
+    name = "lib_publication",
+    artifacts = {":lib": "jvm"},
+    coordinates = "rules_kmp.tests:lib",
+    kind = "jvm",
+    platforms = ["jvm"],
+    tags = ["manual"],
+)
+
+maven_repository(
+    name = "repository",
+    publications = [":lib_publication"],
+    tags = ["manual"],
+    version = "1.0.0",
+)
+
+with_jvm_17(
+    name = "repository_jvm_17",
+    srcs = [":repository"],
+)
+
+py_test(
+    name = "publication_test",
+    size = "small",
+    srcs = ["publication_test.py"],
+    args = ["$(rootpaths :repository_jvm_17)"],
+    data = [":repository_jvm_17"],
+)
+
+kmp_ksp(
+    name = "ksp",
+    srcs = ["Lib.kt"],
+    module_name = "lib",
+    tags = ["manual"],
+)
+
+ksp_jvm_target_test(
+    name = "ksp_test",
+    target_under_test = ":ksp",
+)

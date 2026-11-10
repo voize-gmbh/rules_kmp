@@ -2,6 +2,7 @@
 
 load("@rules_java//java/common:java_common.bzl", "java_common")
 load("@rules_java//java/common:java_info.bzl", "JavaInfo")
+load("//maven:platform.bzl", "MAVEN_PLATFORM_ATTRS", "maven_platform_transition")
 
 _EXEC_JDK = "@bazel_tools//tools/jdk:bootstrap_runtime_toolchain_type"
 
@@ -19,6 +20,8 @@ def test_on_exec_platform_info():
     it runs even with --use_target_platform_for_tests."""
     return testing.ExecutionInfo({}, exec_group = "test")
 
+# The JVM runs in the zone TZ names, as under Gradle, and in UTC without one. Bazel sets TZ=UTC for
+# tests; --test_env=TZ=<zone> moves them.
 _LAUNCHER = """#!/usr/bin/env bash
 set -euo pipefail
 if [[ -z "${{RUNFILES_DIR:-}}" ]]; then
@@ -46,7 +49,7 @@ argfile="$tmp/jvm-args"
 test_jars=""
 for j in {test_jars}; do test_jars+="${{test_jars:+:}}$main/$j"; done
 {preamble}cd "$main/{workdir}"
-exec "$java" {jvm_flags} "-Dbazel.test.jars=$test_jars" "@$argfile" {main_class} "$@"
+exec "$java" "-Duser.timezone=${{TZ:-UTC}}" {jvm_flags} "-Dbazel.test.jars=$test_jars" "@$argfile" {main_class} "$@"
 """
 
 # Placeholders in jvm_flags resolved when the test starts.
@@ -93,16 +96,25 @@ def _launcher(ctx, runtime):
         # Gradle's Test task default; kotlinx.coroutines also enables stack trace recovery with it.
         "-ea",
         "-Dfile.encoding=UTF-8",
-        "-Duser.timezone=UTC",
         "-Duser.language=en",
         "-Duser.country=US",
         "-Djava.awt.headless=true",
         "-XX:+UseParallelGC",
         "-Xmx" + ctx.attr.max_heap,
     ]
-    jvm_flags += [ctx.expand_location(f, ctx.attr.data) for f in ctx.attr.jvm_flags]
+    jvm_flags += [ctx.expand_location(f, ctx.attr.data + ctx.attr.tools) for f in ctx.attr.jvm_flags]
     preamble = []
     quoted_flags = [_quote_flag(f, preamble) for f in jvm_flags]
+
+    # Variables naming a placeholder are exported by the launcher, which knows the absolute paths.
+    env = {}
+    exports = []
+    for k, v in ctx.attr.env.items():
+        v = ctx.expand_location(v, ctx.attr.data + ctx.attr.tools)
+        if any([token in v for token in _PLACEHOLDERS]):
+            exports.append("export %s=%s\n" % (k, _quote_flag(v, preamble)))
+        else:
+            env[k] = v
 
     launcher = ctx.actions.declare_file(ctx.label.name)
     ctx.actions.write(launcher, _LAUNCHER.format(
@@ -110,7 +122,7 @@ def _launcher(ctx, runtime):
         classpath_file = classpath_file.short_path,
         test_jars = " ".join([_rel(j) for j in test_jars]),
         workdir = ctx.attr.workdir or ctx.label.package,
-        preamble = "".join(preamble),
+        preamble = "".join(preamble + exports),
         jvm_flags = " ".join(quoted_flags),
         main_class = ctx.attr.main_class,
         resource_dirs = " ".join(ctx.attr.resource_dirs) or "''",
@@ -118,14 +130,14 @@ def _launcher(ctx, runtime):
     ), is_executable = True)
 
     runfiles = ctx.runfiles(
-        files = [classpath_file] + ctx.files.data + ctx.files.classpath_suffix,
+        files = [classpath_file] + ctx.files.data + ctx.files.tools + ctx.files.classpath_suffix,
         transitive_files = depset(transitive = [runtime_jars, runtime.files]),
     )
-    for d in ctx.attr.data:
+    for d in ctx.attr.data + ctx.attr.tools:
         runfiles = runfiles.merge(d[DefaultInfo].default_runfiles)
     return [
         DefaultInfo(executable = launcher, runfiles = runfiles),
-        RunEnvironmentInfo(environment = ctx.attr.env),
+        RunEnvironmentInfo(environment = env),
     ]
 
 def _kmp_jvm_test_impl(ctx):
@@ -134,7 +146,7 @@ def _kmp_jvm_test_impl(ctx):
 def _target_platform_impl(ctx):
     return _launcher(ctx, ctx.attr._jdk[java_common.JavaRuntimeInfo])
 
-_ATTRS = {
+_ATTRS = MAVEN_PLATFORM_ATTRS | {
     "deps": attr.label_list(providers = [JavaInfo]),
     "runtime_deps": attr.label_list(providers = [JavaInfo]),
     "test_jars": attr.label_list(providers = [JavaInfo], doc = "Libraries whose jars are scanned for tests."),
@@ -147,7 +159,7 @@ _ATTRS = {
     "jvm_flags": attr.string_list(doc = """JVM flags; $(location) is expanded against data. {runfiles} becomes the
 absolute runfiles root, {outputs} the undeclared test outputs directory and {workspace} the workspace
 directory (bazel run only)."""),
-    "env": attr.string_dict(),
+    "env": attr.string_dict(doc = "Environment variables; $(location) and the jvm_flags placeholders work as in jvm_flags."),
     "max_heap": attr.string(default = "2g"),
     "workdir": attr.string(doc = "Working directory relative to the workspace root; defaults to the package."),
     "main_class": attr.string(default = "de.voize.bazel.testing.BazelJUnitRunner"),
@@ -158,22 +170,33 @@ tests turn resource URLs into file paths."""),
 symlinks, for tests that inspect resource files without following links (e.g. okio's metadata)."""),
 }
 
-_TARGET_PLATFORM_ATTRS = dict(_ATTRS, _jdk = attr.label(
-    default = "@bazel_tools//tools/jdk:current_java_runtime",
-    providers = [java_common.JavaRuntimeInfo],
-))
+_TOOLS_DOC = """Programs the test starts, such as a database server, built for the platform the test runs on:
+a select() in them picks that platform's binaries. $(location) in jvm_flags is expanded against them too."""
+
+_EXEC_PLATFORM_ATTRS = dict(_ATTRS, tools = attr.label_list(allow_files = True, cfg = config.exec("test"), doc = _TOOLS_DOC))
+
+_TARGET_PLATFORM_ATTRS = dict(
+    _ATTRS,
+    tools = attr.label_list(allow_files = True, doc = _TOOLS_DOC),
+    _jdk = attr.label(
+        default = "@bazel_tools//tools/jdk:current_java_runtime",
+        providers = [java_common.JavaRuntimeInfo],
+    ),
+)
 
 kmp_jvm_test = rule(
     implementation = _kmp_jvm_test_impl,
+    cfg = maven_platform_transition,
     test = True,
     doc = """Runs on the first execution platform with a JDK, e.g. a remote executor of another CPU
 than the target platform: bytecode and the jars of a JVM test run anywhere.""",
-    attrs = _ATTRS,
+    attrs = _EXEC_PLATFORM_ATTRS,
     exec_groups = TEST_ON_EXEC_PLATFORM,
 )
 
 kmp_jvm_jni_test = rule(
     implementation = _target_platform_impl,
+    cfg = maven_platform_transition,
     test = True,
     doc = """kmp_jvm_test for tests that load native libraries built for the target platform (Robolectric's
 native runtime, layoutlib): runs on an execution platform matching the target platform.""",
@@ -182,6 +205,7 @@ native runtime, layoutlib): runs on an execution platform matching the target pl
 
 kmp_jvm_test_binary = rule(
     implementation = _target_platform_impl,
+    cfg = maven_platform_transition,
     executable = True,
     doc = "kmp_jvm_test as a `bazel run` target, for runs that write into the workspace.",
     attrs = _TARGET_PLATFORM_ATTRS,

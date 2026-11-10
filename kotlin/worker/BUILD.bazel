@@ -1,4 +1,11 @@
 load("@rules_java//java:java_binary.bzl", "java_binary")
+load("@rules_java//java:java_import.bzl", "java_import")
+load("@rules_java//java:java_library.bzl", "java_library")
+
+java_library(
+    name = "worker_protocol",
+    srcs = ["WorkerProtocol.java"],
+)
 
 java_binary(
     name = "builder",
@@ -19,4 +26,37 @@ java_binary(
     ],
     main_class = "de.voize.bazel.kotlin.KotlinBuilder",
     visibility = ["//visibility:public"],
+    deps = [":worker_protocol"],
+)
+
+# kotlin-metadata-jvm, and the ASM the compiler ships (shaded), at the toolchain's version.
+java_import(
+    name = "kotlin_metadata",
+    jars = [
+        "@kotlin_compiler//:lib/kotlin-metadata-jvm.jar",
+        "@kotlin_compiler//:lib/kotlin-stdlib.jar",
+        "@kotlin_compiler//:lib/kotlin-compiler.jar",
+    ],
+)
+
+java_binary(
+    name = "classpath_filter",
+    srcs = [
+        "ClasspathFilter.java",
+        "RawJar.java",
+    ],
+    jvm_flags = [
+        "-Xmx2g",
+        "-XX:+UseG1GC",
+        "-XX:G1PeriodicGCInterval=15000",
+        "-XX:MinHeapFreeRatio=10",
+        "-XX:MaxHeapFreeRatio=30",
+        "-Dfile.encoding=UTF-8",
+    ],
+    main_class = "de.voize.bazel.kotlin.ClasspathFilter",
+    visibility = ["//visibility:public"],
+    deps = [
+        ":kotlin_metadata",
+        ":worker_protocol",
+    ],
 )

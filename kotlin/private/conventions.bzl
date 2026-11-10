@@ -4,10 +4,13 @@ def kmp_conventions(
         maven = "@maven",
         jvm_test_runner = Label("@kmp_maven_libs//:jvm_test_runner"),
         android_jar = None,
+        android_min_sdk = None,
+        android_compile_sdk = None,
         android_host_test = None,
         android_device_test = None,
         source_set_groups = {},
         native_test_bundle_id_prefix = "test.",
+        native_test_exec_properties = {},
         web_test_node = None,
         web_test_npm_packages = {},
         file_labels = None):
@@ -20,16 +23,20 @@ def kmp_conventions(
         engines. The default builds //kotlin/testing:BazelJUnitRunner.java against the JUnit
         Platform of the hub's jvm platform.
       android_jar: The android.jar Android code compiles against.
+      android_min_sdk: minSdkVersion of the Android libraries, written into their AARs.
+      android_compile_sdk: compileSdk of the Android libraries, their AARs' minCompileSdk.
       android_host_test: Macro that declares the Android host test of a module, called with
         name, main_label, lib_kwargs (kmp_jvm_library arguments of the test sources), deps,
         runtime_deps, test, android, resource_dirs, data and tags.
       android_device_test: Macro that declares the Android device test of a module, called with
         name, main_label, namespace, lib_kwargs, deps, runtime_deps, manifest, assets,
-        assets_dir, runner_args and tags.
+        assets_dir, runner_args and tags, and min_sdk and target_sdk when android_options sets them.
       source_set_groups: Shared source sets between common and some platforms, like those a Gradle
         convention plugin adds to the default hierarchy: group name -> platforms. For example
         {"concurrent": ["jvm", "ios_arm64"]} adds concurrentMain and concurrentTest.
       native_test_bundle_id_prefix: Prefix of the bundle id of Kotlin/Native test binaries.
+      native_test_exec_properties: exec_properties of Kotlin/Native test targets, whose actions are
+        the link and the test run, e.g. how much memory a remote executor should reserve for them.
       web_test_node: The node binary that runs JS and Wasm tests.
       web_test_npm_packages: npm packages the JS and Wasm test bundles import: package files ->
         package name.
@@ -44,10 +51,13 @@ def kmp_conventions(
         maven = maven,
         jvm_test_runner = jvm_test_runner,
         android_jar = android_jar,
+        android_min_sdk = android_min_sdk,
+        android_compile_sdk = android_compile_sdk,
         android_host_test = android_host_test,
         android_device_test = android_device_test,
         source_set_groups = source_set_groups,
         native_test_bundle_id_prefix = native_test_bundle_id_prefix,
+        native_test_exec_properties = native_test_exec_properties,
         web_test_node = web_test_node,
         web_test_npm_packages = web_test_npm_packages,
         file_labels = file_labels,

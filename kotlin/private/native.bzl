@@ -228,16 +228,21 @@ def _framework_dirs(runtime):
     return dirs
 
 _SIM_RUNNER = """#!/usr/bin/env bash
-# Runs a Kotlin/Native test binary on an iOS simulator, like the ios-simulator-tests Gradle plugin:
-# the "{device}" device of the newest installed iOS runtime, booted if necessary.
+# Runs a Kotlin/Native test binary on an iOS simulator like the ios-simulator-tests Gradle plugin, in
+# simctl's standalone mode, which needs no booted device: on an "{device}" of the newest installed
+# iOS runtime. Each run creates a device of its own, so that tests running at the same time on one
+# Mac, as on a remote executor, don't share its home directory.
 set -euo pipefail
 {setup}
 runtime=$(xcrun simctl list --json runtimes iOS | /usr/bin/python3 -c 'import json,sys; rs=[r["identifier"] for r in json.load(sys.stdin)["runtimes"] if r.get("isAvailable")]; print(sorted(rs, key=lambda r: [int(x) for x in r.rsplit(".", 1)[-1].split("-")[1:]])[-1])')
-udid=$(xcrun simctl list --json devices | /usr/bin/python3 -c "import json,sys; ds=json.load(sys.stdin)['devices'].get('$runtime',[]); print(next(d['udid'] for d in ds if d['name']=='{device}'))")
-xcrun simctl bootstatus "$udid" -b >/dev/null
+# A device set of the run's own, which goes away with TEST_TMPDIR even if the run is killed.
+devices="${{TEST_TMPDIR:-$(mktemp -d)}}/simulators"
+mkdir -p "$devices"
+trap 'xcrun simctl --set "$devices" delete all >/dev/null 2>&1 || true' EXIT
+udid=$(xcrun simctl --set "$devices" create "{device}" "{device}" "$runtime")
 export SIMCTL_CHILD_TZ="$TZ"
 if [[ -n "$frameworks" ]]; then export SIMCTL_CHILD_DYLD_FRAMEWORK_PATH="$frameworks"; fi
-exec xcrun simctl spawn --standalone "$udid" "$bin" "$@"
+xcrun simctl --set "$devices" spawn --standalone "$udid" "$bin" "$@"
 """
 
 _HOST_RUNNER = """#!/usr/bin/env bash
@@ -311,7 +316,8 @@ def _kmp_native_test_impl(ctx):
         for path, f in _compose_resource_paths(ctx.attr.test_klib[ComposeResourcesInfo]).items():
             symlinks["%s/%s/%s" % (ctx.label.package, resources_dir, path)] = f
     runner = ctx.actions.declare_file(ctx.label.name + ".sh")
-    template = _SIM_RUNNER if target in ("ios_simulator_arm64", "ios_x64") else _HOST_RUNNER
+    simulator = target in ("ios_simulator_arm64", "ios_x64")
+    template = _SIM_RUNNER if simulator else _HOST_RUNNER
     setup = _RUNNER_SETUP.format(
         binary = out.short_path,
         frameworks = ":".join(["$PWD/" + d for d in _framework_dirs(link.runtime)]),
@@ -321,7 +327,13 @@ def _kmp_native_test_impl(ctx):
     runfiles = ctx.runfiles(files = [out] + ctx.files.data + link.runtime)
     if symlinks:
         runfiles = runfiles.merge(ctx.runfiles(symlinks = symlinks))
-    return [DefaultInfo(executable = runner, runfiles = runfiles)]
+    providers = [DefaultInfo(executable = runner, runfiles = runfiles)]
+    if simulator:
+        # simctl comes from the build's Xcode, on a Mac executor too, which picks it by this version.
+        xcode = ctx.attr._xcode_config[apple_common.XcodeVersionConfig]
+        providers.append(RunEnvironmentInfo(environment = apple_common.apple_host_system_env(xcode)))
+        providers.append(testing.ExecutionInfo(xcode.execution_info()))
+    return providers
 
 kmp_native_test = rule(
     implementation = _kmp_native_test_impl,
@@ -370,6 +382,9 @@ def _kmp_native_framework_impl(ctx):
         outputs = [ctx.actions.declare_directory(fw_dir)]
         out_dir = outputs[0].dirname
     extra = ["-Xbinary=bundleId=" + ctx.attr.bundle_id] if ctx.attr.bundle_id else []
+
+    # The KDoc of the framework's declarations in its header, as Gradle exports it by default.
+    extra.append("-Xexport-kdoc")
     if ctx.attr.static:
         extra.append("-Xstatic-framework")
     extra.append("-opt" if ctx.attr.release else "-g")

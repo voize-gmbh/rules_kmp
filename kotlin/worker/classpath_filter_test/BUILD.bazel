@@ -1,0 +1,59 @@
+load("@rules_python//python:py_test.bzl", "py_test")
+load("//kotlin:defs.bzl", "kmp_jvm_library")
+
+# One library in three versions: v2 puts a top-level function where v1 has a comment, v3 appends
+# declarations, which also moves the end of the file that source maps record.
+[
+    kmp_jvm_library(
+        name = "lib_" + v,
+        srcs = {v + "/Helper.kt": "main"},
+        fragments = ["main"],
+        module_name = "fixture:lib",
+    )
+    for v in ["v1", "v2", "v3"]
+]
+
+# User.kt uses the library's operators and inline functions without naming the additions, so its
+# classpath must stay the same from v1 to v2. Plain.kt uses no inline function, so its classpath
+# must stay the same from v1 to v3 as well.
+[
+    kmp_jvm_library(
+        name = "%s_%s" % (user, v),
+        srcs = {src: "main"},
+        fragments = ["main"],
+        module_name = "fixture:" + user,
+        deps = [":lib_" + v],
+    )
+    for user, src, versions in [
+        ("user", "User.kt", ["v1", "v2"]),
+        ("plain", "Plain.kt", ["v1", "v3"]),
+    ]
+    for v in versions
+]
+
+[
+    filegroup(
+        name = name + "_classpath",
+        srcs = [":" + name],
+        output_group = "kotlin_classpath",
+    )
+    for name in ["user_v1", "user_v2", "plain_v1", "plain_v3"]
+]
+
+py_test(
+    name = "classpath_filter_test",
+    size = "small",
+    srcs = ["classpath_filter_test.py"],
+    args = [
+        "$(rootpath :user_v1_classpath)",
+        "$(rootpath :user_v2_classpath)",
+        "$(rootpath :plain_v1_classpath)",
+        "$(rootpath :plain_v3_classpath)",
+    ],
+    data = [
+        ":plain_v1_classpath",
+        ":plain_v3_classpath",
+        ":user_v1_classpath",
+        ":user_v2_classpath",
+    ],
+)

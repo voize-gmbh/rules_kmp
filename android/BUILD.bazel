@@ -1,4 +1,29 @@
+load("@rules_python//python:py_binary.bzl", "py_binary")
+load("@rules_python//python:py_library.bzl", "py_library")
+load("@rules_python//python:py_test.bzl", "py_test")
+
 exports_files(
     ["EmptyManifest.xml"],
     visibility = ["//visibility:public"],
+)
+
+py_binary(
+    name = "package_aar",
+    srcs = ["package_aar.py"],
+    visibility = ["//visibility:public"],
+)
+
+# AGP's AAR layout (merged values, R.txt, entry times) for tools that write other AARs.
+py_library(
+    name = "aar_format",
+    srcs = ["package_aar.py"],
+    imports = ["."],
+    visibility = ["//visibility:public"],
+)
+
+py_test(
+    name = "package_aar_test",
+    size = "small",
+    srcs = ["package_aar_test.py"],
+    deps = [":aar_format"],
 )

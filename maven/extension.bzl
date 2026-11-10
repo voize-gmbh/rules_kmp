@@ -9,8 +9,17 @@ One repository per artifact file (downloaded lazily, verified by sha256) plus a 
 
 @maven//:<name> aliases the jvm target, for plain JVM code.
 
+A further JVM platform of maven.lock(platforms), e.g. jvm_server, gets a package of its own. Where
+it resolves a module itself, the jvm target selects the platform's when building for that platform
+(see platform.bzl); its other modules alias the jvm targets.
+
+For each Quarkus extension a JVM platform resolves, the lock also holds its deployment module and
+the conditional dependencies the platform can enable; @maven//jvm:quarkus_extensions.bzl lists
+them for the rules that package Quarkus applications.
+
 The maven.repository, maven.artifact, maven.compile_version and maven.omit_dependency tags declare
-what the lock holds; `bazel run @maven//:pin` resolves them with Gradle and rewrites the lock.
+what the lock holds; `bazel run @maven//:pin` resolves them with Gradle and rewrites the lock, and
+`bazel run @maven//:pin_check` fails when the lock was pinned from other declarations.
 """
 
 load("@bazel_tools//tools/build_defs/repo:http.bzl", "http_archive", "http_file")
@@ -45,8 +54,32 @@ _PLATFORM_RULES = {
     "wasm_js": "klib",
 }
 
+def _available_at(coord, entry, modules):
+    """group:artifact:version of the platform module a Kotlin Multiplatform root module without
+    files of its own points to (Gradle module metadata `available-at`), or None."""
+    if entry["files"]:
+        return None
+    prefix = coord + "-"
+    candidates = [d for d in entry["deps"] + entry["runtime_deps"] if d.startswith(prefix)]
+    if len(candidates) != 1:
+        return None
+    return "%s:%s" % (candidates[0], modules[candidates[0]].get("version", entry["version"]))
+
 def _label_list(items):
     return "[" + ", ".join(['"%s"' % i for i in items]) + "]"
+
+def _has_compile_jars(entry, artifacts):
+    return any([artifacts[f]["file"].endswith(".jar") for f in entry.get("compile_files", [])])
+
+def _select_alias(name, default, overlays):
+    """An alias of a base platform's module: the target of the lock platform being built for
+    (see platform.bzl) where that platform resolves the module itself, else `default`."""
+    branches = ['        "//%s:selected": "%s",\n' % (o, t) for o, t in sorted(overlays.items())]
+    return 'alias(\n    name = "%s",\n    actual = select({\n%s        "//conditions:default": ":%s",\n    }),\n)\n' % (
+        name,
+        "".join(branches),
+        default,
+    )
 
 def _hub_impl(rctx):
     lock = json.decode(rctx.read(rctx.attr.lock)) if rctx.attr.lock else {"artifacts": {}, "platforms": {}}
@@ -54,6 +87,15 @@ def _hub_impl(rctx):
     kinds = dict(_PLATFORM_RULES)
     for platform, like in rctx.attr.platforms.items():
         kinds[platform] = _PLATFORM_RULES[like]
+
+    # Base platform -> group:module -> further JVM platform -> its own entry for the module.
+    overridden = {}
+    for platform, base in rctx.attr.platforms.items():
+        if _PLATFORM_RULES[base] != "jvm":
+            continue
+        for coord, entry in lock["platforms"].get(platform, {}).items():
+            if "alias" not in entry and coord in lock["platforms"].get(base, {}):
+                overridden.setdefault(base, {}).setdefault(coord, {})[platform] = entry
     pods = rctx.attr.link_pods_package
     root_aliases = []
     for platform, modules in lock["platforms"].items():
@@ -66,16 +108,36 @@ def _hub_impl(rctx):
             'package(default_visibility = ["//visibility:public"])',
             "",
         ]
+        if platform in rctx.attr.platforms and kind == "jvm":
+            # See platform.bzl.
+            lines.append('config_setting(\n    name = "selected",\n    values = {"platform_suffix": "%s"},\n)\n' % platform)
         for coord, entry in sorted(modules.items()):
             name = target_name(coord)
             if "alias" in entry:
                 lines.append('alias(name = "%s", actual = "//%s:%s")\n' % (name, entry["alias"], name))
                 continue
+            overlays = overridden.get(platform, {}).get(coord, {})
+            if overlays:
+                # Its own targets get another name; `name` picks between them and the overlays'.
+                public = name
+                name = "%s__%s" % (public, platform)
+                lines.append(_select_alias(public, name, {o: "//%s:%s" % (o, public) for o in overlays}))
+                if _has_compile_jars(entry, artifacts):
+                    lines.append(_select_alias(public + "__runtime_version", name + "__runtime_version", {
+                        o: "//%s:%s%s" % (o, public, "__runtime_version" if _has_compile_jars(e, artifacts) else "")
+                        for o, e in overlays.items()
+                    }))
             files = ["@%s//file" % _repo_name(f) for f in entry["files"]]
             file_names = [artifacts[f]["file"] for f in entry["files"]]
             deps = [":" + target_name(d) for d in entry["deps"]]
             runtime_deps = [":" + target_name(d) for d in entry["runtime_deps"]]
-            common = '    coordinates = "%s:%s",\n    deps = %s,\n' % (coord, entry["version"], _label_list(deps))
+            available_at = _available_at(coord, entry, modules)
+            common = '    coordinates = "%s:%s",\n%s    deps = %s,\n' % (
+                coord,
+                entry["version"],
+                '    available_at = "%s",\n' % available_at if available_at else "",
+                _label_list(deps),
+            )
             if kind == "klib":
                 # Linking a binary needs runtime-only dependencies too, so klibs carry both.
                 klibs = [f for f, n in zip(files, file_names) if n.endswith(".klib")]
@@ -85,7 +147,12 @@ def _hub_impl(rctx):
                 link_inputs = ["@@%s//%s:link_%s_%s" % (pods.repo_name, pods.package, p, platform) for p in link_pods]
                 lines.append('maven_klib(\n    name = "%s",\n%s    klibs = %s,\n%s    target = "%s",\n)\n' % (
                     name,
-                    '    coordinates = "%s:%s",\n    deps = %s,\n' % (coord, entry["version"], _label_list(deps + [r for r in runtime_deps if r not in deps])),
+                    '    coordinates = "%s:%s",\n%s    deps = %s,\n' % (
+                        coord,
+                        entry["version"],
+                        '    available_at = "%s",\n' % available_at if available_at else "",
+                        _label_list(deps + [r for r in runtime_deps if r not in deps]),
+                    ),
                     _label_list(klibs),
                     '    link_inputs = %s,\n' % _label_list(link_inputs) if link_inputs else "",
                     platform,
@@ -120,7 +187,8 @@ def _hub_impl(rctx):
                         _label_list(runtime_deps),
                     ))
                     exports = [":%s_jar" % name] + exports
-                lines.append('maven_android_library(\n    name = "%s",\n    exports = %s,\n    deps = %s,\n)\n' % (name, _label_list(exports), _label_list(runtime_deps)))
+                tags = ["maven_coordinates=%s:%s" % (coord, entry["version"])] + (["maven_available_at=" + available_at] if available_at else [])
+                lines.append('maven_android_library(\n    name = "%s",\n    exports = %s,\n    deps = %s,\n    tags = %s,\n)\n' % (name, _label_list(exports), _label_list(runtime_deps), _label_list(tags)))
             else:
                 lines.append('maven_jar(\n    name = "%s",\n%s    jars = %s,\n    compile_jars = %s,\n    runtime_deps = %s,\n)\n' % (
                     name,
@@ -137,23 +205,53 @@ def _hub_impl(rctx):
                         _label_list(jars),
                     ))
             if platform == "jvm":
-                root_aliases.append(name)
+                root_aliases.append(target_name(coord))
         rctx.file(platform + "/BUILD.bazel", "\n".join(lines))
+        if kind == "jvm":
+            rctx.file(platform + "/quarkus_extensions.bzl", _quarkus_extensions(platform, modules))
     rctx.file("pin.json", rctx.attr.pin_config)
     root = [
-        'load("%s", "maven_pin")' % Label("//maven/pin:defs.bzl"),
+        'load("%s", "maven_pin", "maven_pin_check")' % Label("//maven/pin:defs.bzl"),
         "",
         'package(default_visibility = ["//visibility:public"])',
         "",
         'maven_pin(name = "pin", config = "pin.json", gradle = "%s")' % rctx.attr.gradle,
+        "",
+        'maven_pin_check(name = "pin_check", config = "pin.json")',
         "",
     ]
     for name in root_aliases:
         root.append('alias(name = "%s", actual = "//jvm:%s")' % (name, name))
     rctx.file("BUILD.bazel", "\n".join(root) + "\n")
 
+def _quarkus_extensions(platform, modules):
+    """quarkus_extensions.bzl of a JVM platform: its Quarkus extensions' deployment modules and
+    conditional dependencies, and the modules each conditional dependency needs to be added."""
+    label = lambda coord: 'Label("//%s:%s")' % (platform, target_name(coord))
+
+    lines = [
+        '"""The Quarkus extensions among the modules of this platform (see maven_lock.json)."""',
+        "",
+        "# Extension -> its deployment module, which holds the extension's build steps.",
+        "DEPLOYMENTS = {",
+    ]
+    lines += ['    "%s": %s,' % (c, label(e["quarkus_deployment"])) for c, e in sorted(modules.items()) if "quarkus_deployment" in e]
+    lines += ["}", "", "# Extension -> the conditional dependencies an application gets when their conditions hold.", "CONDITIONAL = {"]
+    lines += [
+        '    "%s": [%s],' % (c, ", ".join([label(d) for d in e["quarkus_conditional"]]))
+        for c, e in sorted(modules.items())
+        if e.get("quarkus_conditional")
+    ]
+    lines += ["}", "", "# Conditional dependency -> the modules that must be on the classpath for it to be added.", "CONDITIONS = {"]
+    lines += [
+        '    "%s": [%s],' % (c, ", ".join(['"%s"' % d for d in e["quarkus_condition"]]))
+        for c, e in sorted(modules.items())
+        if e.get("quarkus_condition")
+    ]
+    return "\n".join(lines + ["}", ""])
+
 _LOCK_ATTRS = {
-    "platforms": attr.string_dict(doc = "Further lock platforms -> the built-in platform they resolve like, e.g. {\"jvm_server\": \"jvm\"} for a second JVM resolution. Their modules at a version compatible with the built-in platform's alias its targets."),
+    "platforms": attr.string_dict(doc = "Further lock platforms -> the built-in platform they resolve like, e.g. {\"jvm_server\": \"jvm\"} for a second JVM resolution. Their modules that resolve exactly as on the built-in platform alias its targets."),
     "link_pods_package": attr.label(doc = "A label in the package that defines link_<pod>_<platform>, the link inputs of the lock's link_pods."),
 }
 
@@ -261,11 +359,16 @@ def _maven_impl(module_ctx):
     maven_libs_repository(
         name = "kmp_maven_libs",
         hub = lock_tag.name,
+        jvm_version = lock_tag.jvm_version,
         modules = sorted([
             "%s %s" % (platform, coordinate)
             for platform, modules in lock.get("platforms", {}).items()
             for coordinate in modules
         ]),
+        versions = {
+            _repo_name(file_id): file_id.rpartition(":")[0]
+            for file_id in lock["artifacts"]
+        },
     )
     return module_ctx.extension_metadata(reproducible = True)
 
@@ -275,7 +378,7 @@ maven = module_extension(
         "lock": tag_class(attrs = _LOCK_ATTRS | {
             "file": attr.label(mandatory = True, doc = "The lock: each artifact's URL and sha256, and per platform each module's files and dependencies."),
             "name": attr.string(default = "maven", doc = "Name of the hub repository."),
-            "jvm_version": attr.int(default = 21, doc = "The Java version JVM and Android code targets: no library may need a newer one."),
+            "jvm_version": attr.int(default = 21, doc = "The Java version JVM and Android code targets: no library may need a newer one. The default Kotlin toolchain compiles for it."),
         }),
         "repository": tag_class(
             doc = "A Maven repository to resolve from. Each artifact comes from the first declared repository that serves it.",
@@ -300,7 +403,7 @@ maven = module_extension(
             },
         ),
         "compile_version": tag_class(
-            doc = "A lower version of a module to compile against than the one the platform runs with.",
+            doc = "A lower version of a module to compile against than the one the platform runs with, for compilations with maven_compile_versions = True (as in a Gradle build, which resolves each module's compile classpath on its own). Other compilations use the version the platform runs with.",
             attrs = {
                 "coordinates": attr.string(mandatory = True, doc = "group:module:version"),
                 "platforms": attr.string_list(mandatory = True),

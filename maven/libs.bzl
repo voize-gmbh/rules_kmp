@@ -104,11 +104,13 @@ def _maven_libs_impl(rctx):
             "JVM tests need the JUnit Platform from the Maven hub: add maven.artifact entries for %s on the jvm platform, or set kmp_conventions(jvm_test_runner)." % ", ".join(_JUNIT_PLATFORM),
         ))
 
+    lines.append('exports_files(["versions.txt"])')
     rctx.file("BUILD.bazel", "\n".join(lines) + "\n")
+    rctx.file("versions.txt", "".join(["%s %s\n" % (r, c) for r, c in sorted(rctx.attr.versions.items())]))
     rctx.file("defs.bzl", "".join([
         "%s = %s\n" % (name, 'Label("//:%s")' % target if target else "None")
         for name, target in sorted(defs.items())
-    ]))
+    ]) + "JVM_VERSION = %d\n" % rctx.attr.jvm_version)
     return rctx.repo_metadata(reproducible = True)
 
 maven_libs_repository = repository_rule(
@@ -116,6 +118,8 @@ maven_libs_repository = repository_rule(
     attrs = {
         "hub": attr.string(doc = "The hub repository; empty without a maven.lock."),
         "modules": attr.string_list(doc = "\"<platform> <group:module>\" of every module in the lock."),
+        "versions": attr.string_dict(doc = "Repository of each artifact file -> its group:module:version, for check_versions."),
         "runner_src": attr.label(default = "//kotlin/testing:BazelJUnitRunner.java"),
+        "jvm_version": attr.int(default = 21, doc = "maven.lock(jvm_version): what the default Kotlin toolchain targets."),
     },
 )

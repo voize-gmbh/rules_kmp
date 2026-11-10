@@ -2,15 +2,19 @@
 
 load("@rules_java//java/common:java_info.bzl", "JavaInfo")
 load("//kotlin:providers.bzl", "KlibInfo")
+load("//maven:compile_versions.bzl", "maven_runtime_jars_aspect", "runtime_jars")
 
 KotlinToolchainInfo = provider(
     doc = "Everything the Kotlin rules need to run a compilation.",
     fields = {
         "builder": "FilesToRunProvider of the compiler worker.",
+        "classpath_filter": "FilesToRunProvider or None: reduces JVM compiles' dependency ABI jars to what their sources name.",
         "jvm_compiler_classpath": "list[File]: kotlinc jars.",
         "jvm_abi_gen": "File: jvm-abi-gen compiler plugin.",
         "jvm_stdlib": "JavaInfo: kotlin-stdlib, an implicit dependency of every JVM compilation.",
         "android_stdlib": "JavaInfo: kotlin-stdlib as resolved for Android.",
+        "jvm_stdlib_runtime_jars": "list[depset]: the compile_version jars jvm_stdlib brings (see maven/compile_versions.bzl).",
+        "android_stdlib_runtime_jars": "list[depset]: the same for android_stdlib.",
         "jvm_target": "str: -jvm-target.",
         "ksp": "JavaInfo or None: KSP2 and its runtime classpath, for kmp_ksp.",
         "native_compiler_jar": "File: kotlin-native-compiler-embeddable.jar.",
@@ -70,10 +74,13 @@ def _kotlin_toolchain_impl(ctx):
         web_test_libs[name] = target[KlibInfo]
     info = KotlinToolchainInfo(
         builder = ctx.attr.builder[DefaultInfo].files_to_run,
+        classpath_filter = ctx.attr.classpath_filter[DefaultInfo].files_to_run if ctx.attr.classpath_filter else None,
         jvm_compiler_classpath = ctx.files.jvm_compiler_classpath,
         jvm_abi_gen = ctx.file.jvm_abi_gen,
         jvm_stdlib = ctx.attr.jvm_stdlib[JavaInfo] if ctx.attr.jvm_stdlib else None,
         android_stdlib = ctx.attr.android_stdlib[JavaInfo] if ctx.attr.android_stdlib else None,
+        jvm_stdlib_runtime_jars = runtime_jars([ctx.attr.jvm_stdlib] if ctx.attr.jvm_stdlib else []),
+        android_stdlib_runtime_jars = runtime_jars([ctx.attr.android_stdlib] if ctx.attr.android_stdlib else []),
         jvm_target = ctx.attr.jvm_target,
         ksp = ctx.attr.ksp[JavaInfo] if ctx.attr.ksp else None,
         native_compiler_jar = ctx.file.native_compiler_jar,
@@ -97,10 +104,11 @@ kotlin_toolchain = rule(
     implementation = _kotlin_toolchain_impl,
     attrs = {
         "builder": attr.label(cfg = "exec", executable = True, mandatory = True),
+        "classpath_filter": attr.label(cfg = "exec", executable = True),
         "jvm_compiler_classpath": attr.label_list(cfg = "exec", allow_files = True),
         "jvm_abi_gen": attr.label(cfg = "exec", allow_single_file = True),
-        "jvm_stdlib": attr.label(providers = [JavaInfo]),
-        "android_stdlib": attr.label(providers = [JavaInfo]),
+        "jvm_stdlib": attr.label(providers = [JavaInfo], aspects = [maven_runtime_jars_aspect]),
+        "android_stdlib": attr.label(providers = [JavaInfo], aspects = [maven_runtime_jars_aspect]),
         "jvm_target": attr.string(default = "21"),
         "ksp": attr.label(cfg = "exec", providers = [JavaInfo], doc = "KSP2 (symbol-processing-aa-embeddable and its runtime dependencies)."),
         "native_compiler_jar": attr.label(cfg = "exec", allow_single_file = True),

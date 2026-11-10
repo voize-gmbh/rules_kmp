@@ -1,4 +1,7 @@
-"""maven_pin: `bazel run`s the lock generator with a hub's declarations, Gradle and a JDK."""
+"""maven_pin: `bazel run`s the lock generator with a hub's declarations, Gradle and a JDK.
+
+maven_pin_check: `bazel run`s it to check the lock against the declarations, with neither.
+"""
 
 load("@rules_java//java/common:java_common.bzl", "java_common")
 
@@ -45,5 +48,30 @@ maven_pin = rule(
             default = "@bazel_tools//tools/jdk:current_java_runtime",
             providers = [java_common.JavaRuntimeInfo],
         ),
+    },
+)
+
+_CHECK_SCRIPT = """#!/usr/bin/env bash
+set -euo pipefail
+export RUNFILES_DIR="${{RUNFILES_DIR:-$0.runfiles}}"
+exec "$RUNFILES_DIR/{tool}" --check --config "$RUNFILES_DIR/{config}" "$@"
+"""
+
+def _maven_pin_check_impl(ctx):
+    script = ctx.actions.declare_file(ctx.label.name + ".sh")
+    ctx.actions.write(script, _CHECK_SCRIPT.format(
+        tool = _rlocation(ctx.executable._tool.short_path),
+        config = _rlocation(ctx.file.config.short_path),
+    ), is_executable = True)
+    runfiles = ctx.runfiles(files = [ctx.file.config]).merge(ctx.attr._tool[DefaultInfo].default_runfiles)
+    return [DefaultInfo(executable = script, runfiles = runfiles)]
+
+maven_pin_check = rule(
+    implementation = _maven_pin_check_impl,
+    executable = True,
+    doc = "Fails when the lock in the workspace `bazel run` runs in was pinned from other declarations.",
+    attrs = {
+        "config": attr.label(allow_single_file = [".json"], mandatory = True, doc = "The maven extension's declarations."),
+        "_tool": attr.label(default = "//maven/pin", executable = True, cfg = "target"),
     },
 )

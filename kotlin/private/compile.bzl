@@ -1,8 +1,11 @@
 """Kotlin compilation rules: JVM/Android jars and Native/JS/Wasm klibs."""
 
+load("@bazel_skylib//rules:common_settings.bzl", "BuildSettingInfo")
 load("@rules_java//java/common:java_common.bzl", "java_common")
 load("@rules_java//java/common:java_info.bzl", "JavaInfo")
 load("//kotlin:providers.bzl", "ComposeResourcesInfo", "KlibInfo", "KtCompilationInfo", "KtCompilerPluginInfo", "NativeLinkInfo")
+load("//maven:compile_versions.bzl", "VERSION_CHECK_ATTRS", "check_versions", "maven_runtime_jars_aspect", "runtime_jars", "with_runtime_versions")
+load("//maven:platform.bzl", "MAVEN_PLATFORM_ATTRS", "maven_platform_transition")
 load(":toolchain.bzl", "JVM_TOOLCHAIN_TYPE", "NATIVE_KLIB_TOOLCHAIN_TYPE", "WEB_TOOLCHAIN_TYPE", "kotlin_toolchain_info")
 
 
@@ -20,6 +23,8 @@ _COMMON_ATTRS = {
     "plugins": attr.label_list(providers = [KtCompilerPluginInfo]),
     "kotlinc_opts": attr.string_list(),
     "module_name": attr.string(mandatory = True),
+    "maven_artifact": attr.string(doc = "group:artifact the module is published as, when that is not module_name (see maven_pom)."),
+    "maven_platform_artifact": attr.string(doc = "group:artifact of this platform's Maven module, when the module is published per platform (see kmp_publication)."),
 }
 
 def _fragment_args(ctx, args):
@@ -30,7 +35,10 @@ def _fragment_args(ctx, args):
     srcs = []
     for target, fragment in ctx.attr.srcs.items():
         for f in target.files.to_list():
-            args.add("--src", "%s=%s" % (fragment, f.path))
+            if f.extension == "java":
+                args.add("--java_src", f.path)
+            else:
+                args.add("--src", "%s=%s" % (fragment, f.path))
             srcs.append(f)
     srcjars = []
     for target, fragment in ctx.attr.srcjars.items():
@@ -89,56 +97,24 @@ def _kmp_jvm_library_impl(ctx):
         d.compile_jars
         for d in deps + exports + compile_only
     ] + [f.transitive_compile_time_jars for f in friends] + ([depset([ctx.file.android_jar])] if ctx.file.android_jar else []), order = "preorder")
-
-    args = ctx.actions.args()
-    args.set_param_file_format("multiline")
-    args.use_param_file("@%s", use_always = True)
-    args.add("--mode", "jvm")
-    args.add("--compiler_main", "org.jetbrains.kotlin.cli.jvm.K2JVMCompiler")
-    for f in tc.jvm_compiler_classpath:
-        args.add("--compiler_classpath", f.path)
-    args.add("--output", jar)
-    args.add("--abi_output", abi_jar)
-    args.add("--abi_plugin", tc.jvm_abi_gen)
-    args.add("--source_jar_output", src_jar)
-    if res_jar:
-        args.add("--resources_output", res_jar)
-    args.add("--tmp_dir", jar.path + ".tmp")
-    srcs, srcjars = _fragment_args(ctx, args)
-    for target, strip in ctx.attr.resources.items():
-        for f in target.files.to_list():
-            path = f.short_path
-            if strip and path.startswith(strip):
-                path = path[len(strip):].lstrip("/")
-            args.add("--resource", "%s=%s" % (f.path, path))
-    for f in ctx.files.resource_jars:
-        args.add("--resource_jar", f)
-    args.add("--")
-    args.add("-no-stdlib")
-    args.add("-no-reflect")
-    args.add("-module-name", ctx.attr.module_name)
-    args.add("-jvm-target", tc.jvm_target)
-    args.add("-Xexpect-actual-classes")
-    args.add_joined("-classpath", classpath, join_with = ":", omit_if_empty = False)
-    if friend_class_jars:
-        args.add_joined(friend_class_jars, join_with = ",", format_joined = "-Xfriend-paths=%s")
-    plugin_files = _plugin_args(args, plugins, native = False)
-    args.add_all(ctx.attr.kotlinc_opts)
+    if not ctx.attr.maven_compile_versions:
+        classpath = with_runtime_versions(classpath, runtime_jars(
+            ctx.attr.deps + ctx.attr.exports + ctx.attr.compile_only_deps + ctx.attr.friends + ctx.attr.classpath_first,
+        ) + (tc.android_stdlib_runtime_jars if ctx.file.android_jar else tc.jvm_stdlib_runtime_jars))
 
     resource_files = [f for t in ctx.attr.resources for f in t.files.to_list()]
-    ctx.actions.run(
-        mnemonic = "KotlinCompile",
-        progress_message = "Compiling Kotlin %{label}",
-        executable = tc.builder,
-        arguments = [args],
-        inputs = depset(
-            srcs + srcjars + resource_files + ctx.files.resource_jars + plugin_files,
-            transitive = [classpath],
-        ),
-        tools = tc.jvm_compiler_classpath + [tc.jvm_abi_gen],
-        outputs = [jar, abi_jar, src_jar] + ([res_jar] if res_jar else []),
-        execution_requirements = _worker_requirements("KotlinCompile"),
-    )
+    outputs = struct(jar = jar, abi_jar = abi_jar, src_jar = src_jar, res_jar = res_jar)
+    mode = ctx.attr._classpath_filter[BuildSettingInfo].value if tc.classpath_filter else "off"
+    validations = []
+    filtered_dirs = []
+    if mode == "off":
+        _jvm_compile(ctx, tc, "KotlinCompile", classpath, [classpath], friend_class_jars, plugins, resource_files, outputs)
+    else:
+        filtered, filtered_inputs, filtered_dir = _filter_classpath(ctx, tc, classpath)
+        filtered_dirs.append(filtered_dir)
+        _jvm_compile(ctx, tc, "KotlinCompile", filtered, filtered_inputs, friend_class_jars, plugins, resource_files, outputs)
+        if mode == "verify":
+            validations.append(_verify_filtered_compile(ctx, tc, classpath, friend_class_jars, plugins, resource_files, outputs))
 
     # Resources travel in their own jar so a module's tests can see them as directories instead,
     # like Gradle (see kmp_jvm_test.resource_dirs).
@@ -155,6 +131,16 @@ def _kmp_jvm_library_impl(ctx):
         # Merged as an output of this target (not a dependency) so aspects such as Android's dexer
         # that walk targets see it.
         java_info = java_common.merge([java_info, JavaInfo(output_jar = res_jar, compile_jar = res_jar, neverlink = ctx.attr.neverlink)])
+    if not ctx.attr.maven_compile_versions:
+        validations.append(check_versions(ctx, classpath, java_info.transitive_runtime_jars))
+    output_groups = dict(
+        sources = depset([src_jar]),
+        abi = depset([abi_jar]),
+        resources_jar = depset([res_jar] if res_jar else []),
+        kotlin_classpath = depset(filtered_dirs),
+    )
+    if validations:
+        output_groups["_validation"] = depset(validations)
     providers = [
         DefaultInfo(
             files = depset([jar]),
@@ -164,17 +150,131 @@ def _kmp_jvm_library_impl(ctx):
             ),
         ),
         java_info,
-        OutputGroupInfo(
-            sources = depset([src_jar]),
-            abi = depset([abi_jar]),
-            resources_jar = depset([res_jar] if res_jar else []),
-        ),
-        KtCompilationInfo(classpath = classpath, class_jar = jar, friend_jars = friend_class_jars),
+        OutputGroupInfo(**output_groups),
+        KtCompilationInfo(classpath = classpath, class_jar = jar, friend_jars = friend_class_jars, jvm_target = tc.jvm_target),
     ]
     compose = _merge_compose(ctx)
     if compose:
         providers.append(compose)
     return providers
+
+def _jvm_compile(ctx, tc, mnemonic, classpath, classpath_inputs, friend_class_jars, plugins, resource_files, outputs):
+    """Compiles the target's sources against `classpath` (Files or exec paths) into `outputs`."""
+    args = ctx.actions.args()
+    args.set_param_file_format("multiline")
+    args.use_param_file("@%s", use_always = True)
+    args.add("--mode", "jvm")
+    args.add("--compiler_main", "org.jetbrains.kotlin.cli.jvm.K2JVMCompiler")
+    for f in tc.jvm_compiler_classpath:
+        args.add("--compiler_classpath", f.path)
+    args.add("--output", outputs.jar)
+    args.add("--abi_output", outputs.abi_jar)
+    args.add("--abi_plugin", tc.jvm_abi_gen)
+    args.add("--source_jar_output", outputs.src_jar)
+    if outputs.res_jar:
+        args.add("--resources_output", outputs.res_jar)
+    args.add("--tmp_dir", outputs.jar.path + ".tmp")
+    srcs, srcjars = _fragment_args(ctx, args)
+    for target, strip in ctx.attr.resources.items():
+        for f in target.files.to_list():
+            path = f.short_path
+            if strip and path.startswith(strip):
+                path = path[len(strip):].lstrip("/")
+            args.add("--resource", "%s=%s" % (f.path, path))
+    for f in ctx.files.resource_jars:
+        args.add("--resource_jar", f)
+    args.add("--javac_arg", "--release=" + tc.jvm_target.removeprefix("1."))
+    args.add("--")
+    args.add("-no-stdlib")
+    args.add("-no-reflect")
+    args.add("-module-name", ctx.attr.module_name)
+    args.add("-jvm-target", tc.jvm_target)
+    args.add("-Xexpect-actual-classes")
+    args.add_joined("-classpath", classpath, join_with = ":", omit_if_empty = False)
+    if friend_class_jars:
+        args.add_joined(friend_class_jars, join_with = ",", format_joined = "-Xfriend-paths=%s")
+    plugin_files = _plugin_args(args, plugins, native = False)
+    args.add_all(ctx.attr.kotlinc_opts)
+
+    ctx.actions.run(
+        mnemonic = mnemonic,
+        progress_message = "Compiling Kotlin %{label}",
+        executable = tc.builder,
+        arguments = [args],
+        inputs = depset(
+            srcs + srcjars + resource_files + ctx.files.resource_jars + plugin_files,
+            transitive = classpath_inputs,
+        ),
+        tools = tc.jvm_compiler_classpath + [tc.jvm_abi_gen],
+        outputs = [outputs.jar, outputs.abi_jar, outputs.src_jar] + ([outputs.res_jar] if outputs.res_jar else []),
+        execution_requirements = _worker_requirements(mnemonic),
+    )
+
+def _filterable(jar):
+    # The ABI jars of Kotlin libraries built here; other jars change too rarely to be worth it.
+    return not jar.is_source and jar.basename.endswith("-abi.jar")
+
+def _filter_classpath(ctx, tc, classpath):
+    """The classpath with dependency ABI jars reduced to what the sources can refer to.
+
+    Adding a top-level declaration the sources don't name to a dependency then leaves the compile's
+    inputs, and so its outputs, as they were (see ClasspathFilter.java).
+
+    Returns:
+      (classpath entries as exec paths, depsets of the files they are in, the filtered jars' directory)
+    """
+    entries = classpath.to_list()
+    out_dir = ctx.actions.declare_directory(ctx.label.name + "_classpath")
+    args = ctx.actions.args()
+    args.set_param_file_format("multiline")
+    args.use_param_file("@%s", use_always = True)
+    srcs = [f for t in ctx.attr.srcs for f in t.files.to_list()]
+    srcjars = [f for t in ctx.attr.srcjars for f in t.files.to_list()]
+    args.add_all(srcs, before_each = "--src")
+    args.add_all(srcjars, before_each = "--srcjar")
+    paths = []
+    unfiltered = []
+    filtered = []
+    for i, jar in enumerate(entries):
+        if _filterable(jar):
+            path = "%s/%d.jar" % (out_dir.path, i)
+            args.add("--jar", "%s=%s" % (jar.path, path))
+            filtered.append(jar)
+            paths.append(path)
+        else:
+            unfiltered.append(jar)
+            paths.append(jar.path)
+    ctx.actions.run(
+        mnemonic = "KotlinClasspathFilter",
+        progress_message = "Filtering the classpath of %{label}",
+        executable = tc.classpath_filter,
+        arguments = [args],
+        inputs = srcs + srcjars + filtered,
+        outputs = [out_dir],
+        execution_requirements = _worker_requirements("KotlinClasspathFilter"),
+    )
+    return paths, [depset(unfiltered + [out_dir])], out_dir
+
+def _verify_filtered_compile(ctx, tc, classpath, friend_class_jars, plugins, resource_files, outputs):
+    """Compiles again against the whole classpath; the returned check fails unless the jars match."""
+    name = ctx.label.name + "_unfiltered/" + ctx.label.name
+    reference = struct(
+        jar = ctx.actions.declare_file(name + ".jar"),
+        abi_jar = ctx.actions.declare_file(name + "-abi.jar"),
+        src_jar = ctx.actions.declare_file(name + "-sources.jar"),
+        res_jar = ctx.actions.declare_file(name + "-resources.jar") if outputs.res_jar else None,
+    )
+    _jvm_compile(ctx, tc, "KotlinCompileUnfiltered", classpath, [classpath], friend_class_jars, plugins, resource_files, reference)
+    check = ctx.actions.declare_file(ctx.label.name + "_unfiltered/match")
+    ctx.actions.run_shell(
+        mnemonic = "KotlinClasspathFilterCheck",
+        progress_message = "Checking %{label} compiles the same against its filtered classpath",
+        inputs = [outputs.jar, outputs.abi_jar, reference.jar, reference.abi_jar],
+        outputs = [check],
+        command = "for p in \"$1 $2\" \"$3 $4\"; do cmp $p || { echo \"%s: compiling against the filtered classpath gave a different jar\" >&2; exit 1; }; done; touch \"$5\"" % ctx.label,
+        arguments = [outputs.jar.path, reference.jar.path, outputs.abi_jar.path, reference.abi_jar.path, check.path],
+    )
+    return check
 
 def _merge_compose(ctx):
     transitive = [
@@ -197,17 +297,29 @@ def _merge_compose(ctx):
 
 kmp_jvm_library = rule(
     implementation = _kmp_jvm_library_impl,
-    attrs = dict(_COMMON_ATTRS, **{
-        "deps": attr.label_list(providers = [JavaInfo]),
-        "exports": attr.label_list(providers = [JavaInfo]),
+    cfg = maven_platform_transition,
+    attrs = dict(_COMMON_ATTRS, **(VERSION_CHECK_ATTRS | MAVEN_PLATFORM_ATTRS | {
+        "srcs": attr.label_keyed_string_dict(
+            allow_files = [".kt", ".java"],
+            doc = "Source file -> name of the multiplatform fragment (source set) it belongs to; Java files are compiled with javac after the Kotlin sources, which see them.",
+        ),
+        "deps": attr.label_list(providers = [JavaInfo], aspects = [maven_runtime_jars_aspect]),
+        "exports": attr.label_list(providers = [JavaInfo], aspects = [maven_runtime_jars_aspect]),
         "runtime_deps": attr.label_list(providers = [JavaInfo]),
-        "compile_only_deps": attr.label_list(providers = [JavaInfo]),
-        "friends": attr.label_list(providers = [JavaInfo]),
+        "compile_only_deps": attr.label_list(providers = [JavaInfo], aspects = [maven_runtime_jars_aspect]),
+        "friends": attr.label_list(providers = [JavaInfo], aspects = [maven_runtime_jars_aspect]),
         "classpath_first": attr.label_list(
             providers = [JavaInfo],
+            aspects = [maven_runtime_jars_aspect],
             doc = """Jars put first on the compile classpath, shadowing other versions of the same
 classes: for libraries Gradle compiled this module against at a different version than the repo-wide
-compile version (see maven_lock compile_version).""",
+compile version (see maven_compile_versions).""",
+        ),
+        "maven_compile_versions": attr.bool(
+            doc = """Compile against the lower versions of maven.compile_version, as a Gradle build
+of the same module does, instead of the versions the platform runs with. Without it, a validation
+action fails the build if a Maven module on the compile classpath is at another version than on the
+runtime classpath.""",
         ),
         "resources": attr.label_keyed_string_dict(
             allow_files = True,
@@ -218,7 +330,8 @@ compile version (see maven_lock compile_version).""",
         "android_jar": attr.label(allow_single_file = True, doc = "Compile against this android.jar."),
         "data": attr.label_list(allow_files = True),
         "neverlink": attr.bool(),
-    }),
+        "_classpath_filter": attr.label(default = "//config:kotlin_classpath_filter", providers = [BuildSettingInfo]),
+    })),
     provides = [JavaInfo],
     toolchains = [JVM_TOOLCHAIN_TYPE],
 )
@@ -336,6 +449,8 @@ def _kmp_klib_impl(ctx):
         args.add("-module-name", ctx.attr.module_name)
         # Like Gradle (the project name): Objective-C export prefixes clashing names with it.
         args.add("-Xshort-module-name=" + (ctx.attr.short_module_name or ctx.attr.module_name.rsplit(":", 1)[-1]))
+        # Like Gradle: the klib keeps the KDoc, which frameworks export into their headers.
+        args.add("-Xexport-kdoc")
         args.add("-Xoverride-konan-properties=airplaneMode=true")
         args.add("-Xheader-klib-path=" + header.path)
         for l in compile_libraries:

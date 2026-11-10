@@ -39,6 +39,20 @@ config_setting(
     flag_values = {":native_caches_on_linux": "true"},
 )
 
+# JVM compiles see their dependencies' ABI jars without the top-level declarations their sources
+# never name, so adding one doesn't recompile every dependent (kotlin/worker/ClasspathFilter.java).
+# "verify" also compiles each library against the whole classpath and fails the build unless the
+# jars match; "off" compiles against the whole classpath only.
+string_flag(
+    name = "kotlin_classpath_filter",
+    build_setting_default = "on",
+    values = [
+        "on",
+        "off",
+        "verify",
+    ],
+)
+
 # The minimum iOS version Kotlin/Native binaries, their static caches and the Objective-C and Swift
 # code they link are built for.
 string_flag(

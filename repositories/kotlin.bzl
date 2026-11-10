@@ -31,6 +31,8 @@ filegroup(name = "parcelize_plugin", srcs = ["lib/parcelize-compiler.jar"])
 
 filegroup(name = "power_assert_plugin", srcs = ["lib/power-assert-compiler-plugin.jar"])
 
+filegroup(name = "sam_with_receiver_plugin", srcs = ["lib/sam-with-receiver-compiler-plugin.jar"])
+
 filegroup(name = "stdlib_js_klib", srcs = ["lib/kotlin-stdlib-js.klib"])
 
 filegroup(name = "stdlib_wasm_js_klib", srcs = ["lib/kotlin-stdlib-wasm-js.klib"])

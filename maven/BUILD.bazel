@@ -1,4 +1,48 @@
+load("@rules_python//python:py_binary.bzl", "py_binary")
+load("@rules_python//python:py_test.bzl", "py_test")
+
 exports_files(
     ["empty.jar"],
     visibility = ["//visibility:public"],
+)
+
+# Builds with --stamp: maven_repository reads its version from the workspace status then.
+config_setting(
+    name = "stamped",
+    values = {"stamp": "1"},
+    visibility = ["//visibility:public"],
+)
+
+py_binary(
+    name = "publication",
+    srcs = ["publication.py"],
+    visibility = ["//visibility:public"],
+)
+
+py_binary(
+    name = "check_versions",
+    srcs = ["check_versions.py"],
+    visibility = ["//visibility:public"],
+)
+
+py_test(
+    name = "check_versions_test",
+    size = "small",
+    srcs = [
+        "check_versions.py",
+        "check_versions_test.py",
+    ],
+    imports = ["."],
+    main = "check_versions_test.py",
+)
+
+py_test(
+    name = "publication_test",
+    size = "small",
+    srcs = [
+        "publication.py",
+        "publication_test.py",
+    ],
+    imports = ["."],
+    main = "publication_test.py",
 )

@@ -1,6 +1,8 @@
 """Resolves a workspace's declared Maven artifacts with Gradle and writes the lock.
 
 Run through `bazel run @maven//:pin`, which passes the declarations of the maven extension's tags.
+`bazel run @maven//:pin_check` (--check) resolves nothing and fails when the lock was pinned from
+other declarations.
 """
 
 import argparse
@@ -179,6 +181,80 @@ def build_platforms(config, results):
     return platforms
 
 
+def ga(coordinates):
+    return ":".join(coordinates.split(":")[:2])
+
+
+def resolve(config, gradle, java_home):
+    """Resolves the declarations into each platform's modules (see build_platforms).
+
+    The Quarkus extensions a JVM platform resolves bring their deployment modules, which hold the
+    build steps of a Quarkus application, and the conditional dependencies whose conditions the
+    platform's modules can meet. The resolution repeats with them declared until it adds none.
+    Their entries record them, so the rules that package an application can pick them.
+    """
+    kinds = platform_kinds(config)
+    derived = {}  # coordinates -> declaration
+    conditions = {}  # (platform, coordinates) -> modules a conditional dependency needs, or None if unresolvable
+    for _ in range(10):
+        request = gradle_request(dict(config, artifacts=config["artifacts"] + [derived[c] for c in sorted(derived)]))
+        probes = {}
+        for (platform, coords), condition in sorted(conditions.items()):
+            if condition == "probe":
+                probes.setdefault(platform, []).append(coords)
+        for platform, coords in sorted(probes.items()):
+            attrs = resolutions(platform, kinds[platform], config["jvm_version"])["runtime"]
+            request["resolutions"].append({
+                "name": "%s/quarkus_conditional" % platform, "attributes": attrs, "transitive": False,
+                "dependencies": [{"coordinates": c, "excludes": [], "bom": False} for c in coords]})
+        log("Resolving %d configurations with Gradle" % len(request["resolutions"]))
+        results = run_gradle(gradle, java_home, request)
+        problems = ["%s: %s" % (name, u) for name, r in sorted(results.items()) for u in r["unresolved"]
+                    if not name.endswith("/quarkus_conditional")]
+        if problems:
+            for p in problems:
+                log(p)
+            raise SystemExit("Gradle could not resolve %d dependencies" % len(problems))
+        for platform in probes:
+            nodes = lock.module_nodes(results["%s/quarkus_conditional" % platform])
+            for coords in probes[platform]:
+                jars = [f for n, f in sorted(nodes.get(ga(coords), lock.Node("", set(), {})).files.items()) if n.endswith(".jar")]
+                descriptor = lock.quarkus_descriptor(jars[0]) if jars else None
+                conditions[(platform, coords)] = descriptor["condition"] if descriptor else None
+        platforms = build_platforms(config, results)
+        missing = []
+        for platform, modules in sorted(platforms.items()):
+            if kinds[platform] != "jvm":
+                continue
+            for module, ext in sorted(lock.quarkus_extensions(modules).items()):
+                entry = modules[module]
+                if ext["deployment"]:
+                    entry["quarkus_deployment"] = ga(ext["deployment"])
+                    if ga(ext["deployment"]) not in modules:
+                        missing.append((platform, ext["deployment"]))
+                if ext["condition"]:
+                    entry["quarkus_condition"] = ext["condition"]
+                present = []
+                for coords in ext["conditional"]:
+                    if ga(coords) in modules:
+                        present.append(ga(coords))
+                    elif (platform, coords) not in conditions:
+                        conditions[(platform, coords)] = "probe"
+                    else:
+                        condition = conditions[(platform, coords)]
+                        if condition not in (None, "probe") and all(m in modules for m in condition):
+                            missing.append((platform, coords))
+                if present:
+                    entry["quarkus_conditional"] = sorted(present)
+        if not missing and "probe" not in conditions.values():
+            return platforms
+        for platform, coords in missing:
+            derived.setdefault(coords, {"coordinates": coords, "platforms": [], "scope": "compile",
+                                        "excludes": [], "bom": False})["platforms"].append(platform)
+        log("Adding %d Quarkus deployment modules and conditional dependencies" % len(missing))
+    raise SystemExit("Quarkus extensions keep adding modules: %s" % ", ".join(c for _, c in missing))
+
+
 class Repositories:
     """Finds the repository URL of artifacts: the first declared repository that serves them."""
 
@@ -241,7 +317,9 @@ class Repositories:
                 try:
                     for variant in json.loads(meta).get("variants", []):
                         for f in variant.get("files", []):
-                            names[f["name"]] = (f["url"], f.get("sha256"))
+                            # Some publishers leave out a sha256's leading zeros (jackson-databind 2.15.4).
+                            sha = f.get("sha256")
+                            names[f["name"]] = (f["url"], sha.zfill(64) if sha else None)
                 except ValueError:
                     names = {}
             elif not self.probe("%s/%s/%s-%s.pom" % (base, base_path, module, version), repo):
@@ -270,9 +348,11 @@ def artifact_infos(artifacts, repositories, previous):
     Args:
       artifacts: file id -> lock.Artifact.
       repositories: The Repositories to look the artifacts up in.
-      previous: The artifacts of the lock being replaced. One with the same file id and sha256
-        keeps its URL; repositories limit how often a file may be fetched, even with HEAD.
+      previous: The artifacts of the lock being replaced. One of the same module with the same
+        file name and sha256 keeps its URL; repositories limit how often a file may be fetched,
+        even with HEAD.
     """
+    kept = {(":".join(fid.split(":", 2)[:2]), old["file"], old["sha256"]): old for fid, old in previous.items()}
     components = {}
     for fid, a in artifacts.items():
         components.setdefault((a.group, a.module, a.version), {})[a.name] = (fid, a.path)
@@ -285,8 +365,8 @@ def artifact_infos(artifacts, repositories, previous):
         digests = {name: sha256(path) for name, (_, path) in files.items()}
         urls = {}
         for name, (fid, _) in files.items():
-            old = previous.get(fid)
-            if old and old["sha256"] == digests[name] and any(c["url"] in old["url"] for c in repositories.candidates(group)):
+            old = kept.get(("%s:%s" % (group, module), name, digests[name]))
+            if old and any(c["url"] in old["url"] for c in repositories.candidates(group)):
                 urls[name] = (old["url"], None)
         if len(urls) < len(files):
             urls.update(repositories.urls(group, module, version, [n for n in files if n not in urls]))
@@ -312,38 +392,48 @@ def artifact_infos(artifacts, repositories, previous):
     return dict(sorted(infos.items()))
 
 
+def inputs_sha256(config):
+    """Digest of the declarations a lock is pinned from, recorded in the lock."""
+    return hashlib.sha256(json.dumps(config, sort_keys=True).encode()).hexdigest()
+
+
+def is_current(config, lock_path):
+    """Whether the lock at lock_path was pinned from these declarations."""
+    if not lock_path.exists():
+        return False
+    return json.loads(lock_path.read_text()).get("inputs_sha256") == inputs_sha256(config)
+
+
 def main(argv=None):
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--config", required=True, help="The declarations of the maven extension (JSON).")
-    parser.add_argument("--gradle", required=True, help="The gradle launcher of the pinned distribution.")
-    parser.add_argument("--java-home", required=True, help="The JDK that runs Gradle.")
+    parser.add_argument("--gradle", help="The gradle launcher of the pinned distribution.")
+    parser.add_argument("--java-home", help="The JDK that runs Gradle.")
     parser.add_argument("--workspace", default=os.environ.get("BUILD_WORKSPACE_DIRECTORY"),
                         help="The workspace whose lock to write (default: the one bazel run runs in).")
+    parser.add_argument("--check", action="store_true",
+                        help="Resolve nothing: exit 1 if the lock was pinned from other declarations.")
     args = parser.parse_args(argv)
     if not args.workspace:
         raise SystemExit("run me with bazel run, or pass --workspace")
     config = json.loads(Path(args.config).read_text())
+    lock_path = Path(args.workspace) / config["lock"]
+    if args.check:
+        if not is_current(config, lock_path):
+            raise SystemExit("%s was pinned from other declarations than the current ones: pin it again" % config["lock"])
+        log("%s is current" % config["lock"])
+        return
+    if not args.gradle or not args.java_home:
+        parser.error("pinning needs --gradle and --java-home")
 
-    request = gradle_request(config)
-    log("Resolving %d configurations with Gradle" % len(request["resolutions"]))
-    results = run_gradle(os.path.abspath(args.gradle), os.path.abspath(args.java_home), request)
-    problems = ["%s: %s" % (name, u) for name, r in sorted(results.items()) for u in r["unresolved"]]
-    if problems:
-        for p in problems:
-            log(p)
-        raise SystemExit("Gradle could not resolve %d dependencies" % len(problems))
-
-    platforms = build_platforms(config, results)
+    platforms = resolve(config, os.path.abspath(args.gradle), os.path.abspath(args.java_home))
     lock.alias_overlays(platforms, config["platforms"])
     entries, artifacts = lock.lock_entries(platforms)
-    lock_path = Path(args.workspace) / config["lock"]
     previous = json.loads(lock_path.read_text())["artifacts"] if lock_path.exists() else {}
     log("Finding the repository of %d artifacts" % len(artifacts))
-    out = {
-        "version": lock.LOCK_VERSION,
-        "artifacts": artifact_infos(artifacts, Repositories(config["repositories"]), previous),
-        "platforms": entries,
-    }
+    infos = artifact_infos(artifacts, Repositories(config["repositories"]), previous)
+    entries, infos = lock.publication_versions(entries, infos)
+    out = {"version": lock.LOCK_VERSION, "inputs_sha256": inputs_sha256(config), "artifacts": infos, "platforms": entries}
     lock_path.write_text(json.dumps(out, indent=1, sort_keys=True) + "\n")
     log("Wrote %s: %d artifacts, %s" % (lock_path, len(out["artifacts"]),
                                         {p: len(m) for p, m in sorted(out["platforms"].items())}))

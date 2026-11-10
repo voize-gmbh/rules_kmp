@@ -1,4 +1,4 @@
-load("@kmp_maven_libs//:defs.bzl", "ANDROID_STDLIB", "JVM_STDLIB", "KSP")
+load("@kmp_maven_libs//:defs.bzl", "ANDROID_STDLIB", "JVM_STDLIB", "JVM_VERSION", "KSP")
 load("@rules_java//java:java_import.bzl", "java_import")
 load("//kotlin:defs.bzl", "kmp_jvm_library", "kotlin_toolchain")
 load("//kotlin:version.bzl", "KOTLIN_VERSION")
@@ -142,10 +142,12 @@ kotlin_toolchain(
     name = "toolchain_jvm",
     android_stdlib = ANDROID_STDLIB or _JVM_STDLIB,
     builder = _BUILDER,
+    classpath_filter = "//kotlin/worker:classpath_filter",
     compiler_version = KOTLIN_VERSION,
     jvm_abi_gen = "@kotlin_compiler//:jvm_abi_gen",
     jvm_compiler_classpath = ["@kotlin_compiler//:compiler_classpath"],
     jvm_stdlib = _JVM_STDLIB,
+    jvm_target = str(JVM_VERSION),
     ksp = KSP,
 )
 
